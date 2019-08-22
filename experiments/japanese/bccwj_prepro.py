@@ -8,7 +8,7 @@ path.append(os.getcwd())
 from pytorch_pretrained_bert.tokenization import BertTokenizer
 
 from data_utils.log_wrapper import create_logger
-from experiments.japanese.bccwj_label_map import NERLabelMapper, NERALLLabelMapper, ChunkingLabelMapper, POSLabelMapper
+from experiments.japanese.bccwj_label_map import NERLabelMapper, NERALLLabelMapper, ChunkingLabelMapper, POSLabelMapper, FinePOSLabelMapper
 
 logger = create_logger(__name__, to_disk=True, log_file='glue_prepro.log')
 
@@ -102,7 +102,7 @@ def load_chunking(file, eos='。'):
             else:
                 if len(contents.split(' ')) == 5:
                     word = contents.split(' ')[0]
-                    label = contents.split(' ')[2]
+                    label = contents.split(' ')[3]
                     words.append(word)
                     labels.append(label)
     return rows
@@ -131,6 +131,34 @@ def load_pos(file, eos='。'):
                 if len(contents.split(' ')) == 5:
                     word = contents.split(' ')[0]
                     label = contents.split(' ')[1]
+                    words.append(word)
+                    labels.append(label)
+    return rows
+
+
+def load_finepos(file, eos='。'):
+    """Loading data of bccwj with Fine POS labels
+    """
+    rows = []
+    cnt = 0
+    with open(file, encoding="utf8") as f:
+        words = []
+        labels = []
+        for line in f:
+            contents = line.strip()
+            if contents.startswith("-DOCSTART-") or len(contents) == 0:
+                    continue
+
+            if len(words) > 0 and words[-1] == eos:
+                sample = {'uid': str(cnt), 'premise': words, 'label': labels}
+                rows.append(sample)
+                cnt += 1
+                words = []
+                labels = []
+            else:
+                if len(contents.split(' ')) == 5:
+                    word = contents.split(' ')[0]
+                    label = contents.split(' ')[2]
                     words.append(word)
                     labels.append(label)
     return rows
@@ -177,7 +205,7 @@ def main(args):
 
     tasks = args.tasks.split(',')
     for t in tasks:
-        if not t in ['ner', 'pos', 'nerall', 'chunking']:
+        if not t in {'ner', 'pos', 'nerall', 'chunking', 'finepos'}:
             sys.exit(f'invalid task name: {t}')
 
     train_path = os.path.join(root, 'train.txt')
@@ -274,6 +302,27 @@ def main(args):
         build_data(test_data, test_fout, tokenizer, POSLabelMapper, args.max_seq_len)
         logger.info('done with POSTagging')
 
+    ############
+    # Fine-POS Tagging
+    ############
+    if 'finepos' in tasks:
+        # load
+        train_data = load_finepos(train_path)
+        dev_data = load_finepos(dev_path)
+        test_data = load_finepos(test_path)
+        logger.info('Loaded {} Fine POS train samples'.format(len(train_data)))
+        logger.info('Loaded {} Fine POS dev samples'.format(len(dev_data)))
+        logger.info('Loaded {} Fine POS test samples'.format(len(test_data)))
+
+        # build
+        train_fout = os.path.join(root, 'finepos_train.json')
+        dev_fout = os.path.join(root, 'finepos_dev.json')
+        test_fout = os.path.join(root, 'finepos_test.json')
+
+        build_data(train_data, train_fout, tokenizer, FinePOSLabelMapper, args.max_seq_len)
+        build_data(dev_data, dev_fout, tokenizer, FinePOSLabelMapper, args.max_seq_len)
+        build_data(test_data, test_fout, tokenizer, FinePOSLabelMapper, args.max_seq_len)
+        logger.info('done with FinePOSTagging')
 
 if __name__ == "__main__":
     args = parse_args()
