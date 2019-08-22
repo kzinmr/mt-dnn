@@ -11,10 +11,10 @@ def read_file(fpath: str) -> list:
     with open(fpath, 'r') as fp:
         lines = []
         for line in fp:
-            line = line.strip()
+            line = line.rstrip()
             if len(line) == 0:
                 continue
-            word = line.strip().split(' ')[0]
+            word = line.rstrip().split(' ')[0]
             if word != '。':
                 lines.append(line)
             else:

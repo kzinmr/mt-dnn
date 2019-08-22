@@ -28,14 +28,15 @@ def main(args):
 
     with open(args.out_path, 'w') as fp:
         for d, predictions in zip(data, scores['predictions']):
-            assert len(d['token_id']) == len(d['label'])
-            assert len(d['label']) == len(predictions)
-            tokens = [tokenizer.ids_to_tokens[t] for t in d['token_id']]
-            labels = [label_map.ind2tok[l] for l in d['label']]
-            preds = [label_map.ind2tok[l] for l in predictions]
-            for t, l, p in zip(tokens, labels, preds):
-                print(f"{t} {l} {p}", file=fp)
-            print(file=fp)
+            if len(d['token_id']) == len(d['label']) and len(d['label']) == len(predictions):
+                tokens = [tokenizer.ids_to_tokens[t] for t in d['token_id']]
+                labels = [label_map.ind2tok[l] for l in d['label']]
+                preds = [label_map.ind2tok[l] for l in predictions]
+                for t, l, p in zip(tokens, labels, preds):
+                    print(f"{t} {l} {p}", file=fp)
+                print(file=fp)
+            else:
+                print(f"token_id: {len(d['token_id'])}, label: {len(d['label'])}, pred: {len(predictions)}")
                 
 
 if __name__ == "__main__":

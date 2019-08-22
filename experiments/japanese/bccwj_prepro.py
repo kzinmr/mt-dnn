@@ -5,7 +5,8 @@ import random
 import argparse
 from sys import path
 path.append(os.getcwd())
-from pytorch_pretrained_bert.tokenization import BertTokenizer
+# from pytorch_pretrained_bert.tokenization import BertTokenizer
+from mytokenization import BertTokenizer  # 全角スペースを保持するための修正
 
 from data_utils.log_wrapper import create_logger
 from experiments.japanese.bccwj_label_map import NERLabelMapper, NERALLLabelMapper, ChunkingLabelMapper, POSLabelMapper, FinePOSLabelMapper
@@ -33,7 +34,7 @@ def load_ner(file, eos='。'):
         words = []
         labels = []
         for line in f:
-            contents = line.strip()
+            contents = line.rstrip()
             if contents.startswith("-DOCSTART-") or len(contents) == 0:
                     continue
 
@@ -62,7 +63,7 @@ def load_nerall(file, eos='。'):
         words = []
         labels = []
         for line in f:
-            contents = line.strip()
+            contents = line.rstrip()
             if contents.startswith("-DOCSTART-") or len(contents) == 0:
                     continue
 
@@ -89,7 +90,7 @@ def load_chunking(file, eos='。'):
         words = []
         labels = []
         for line in f:
-            contents = line.strip()
+            contents = line.rstrip()
             if contents.startswith("-DOCSTART-") or len(contents) == 0:
                     continue
 
@@ -117,7 +118,7 @@ def load_pos(file, eos='。'):
         words = []
         labels = []
         for line in f:
-            contents = line.strip()
+            contents = line.rstrip()
             if contents.startswith("-DOCSTART-") or len(contents) == 0:
                     continue
 
@@ -145,7 +146,7 @@ def load_finepos(file, eos='。'):
         words = []
         labels = []
         for line in f:
-            contents = line.strip()
+            contents = line.rstrip()
             if contents.startswith("-DOCSTART-") or len(contents) == 0:
                     continue
 

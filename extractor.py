@@ -21,7 +21,7 @@ def load_data(file):
     is_single_sentence = False
     with open(file, encoding="utf8") as f:
         for line in f:
-            blocks = line.strip().split('|||')
+            blocks = line.rstrip().split('|||')
             if len(blocks) == 2:
                 sample = {'uid': str(cnt), 'premise': blocks[0], 'hypothesis': blocks[1], 'label': 0}
             else:
