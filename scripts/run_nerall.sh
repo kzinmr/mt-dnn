@@ -22,8 +22,9 @@ TASK_DEF_PATH="experiments/japanese/japanese_task_def.yml"
 optim="adamax"
 grad_clipping=0
 global_grad_clipping=1
-lr="2e-5"
+lr="5e-5"
+epochs=5
 
 model_dir="checkpoints/${prefix}_${optim}_gc${grad_clipping}_ggc${global_grad_clipping}_${tstr}"
 log_file="${model_dir}/log.log"
-python train.py --data_dir ${DATA_DIR} --bert_config_path ${BERT_CONFIG_PATH} --init_checkpoint ${BERT_PATH} --batch_size ${BATCH_SIZE} --output_dir ${model_dir} --log_file ${log_file} --optimizer ${optim} --train_datasets ${train_datasets} --test_datasets ${test_datasets} --grad_clipping ${grad_clipping} --global_grad_clipping ${global_grad_clipping} --learning_rate ${lr} --multi_gpu_on --task_def ${TASK_DEF_PATH}
+python train.py --data_dir ${DATA_DIR} --bert_config_path ${BERT_CONFIG_PATH} --init_checkpoint ${BERT_PATH} --batch_size ${BATCH_SIZE} --output_dir ${model_dir} --log_file ${log_file} --optimizer ${optim} --train_datasets ${train_datasets} --test_datasets ${test_datasets} --grad_clipping ${grad_clipping} --global_grad_clipping ${global_grad_clipping} --learning_rate ${lr} --multi_gpu_on --task_def ${TASK_DEF_PATH} --epochs ${epochs}

@@ -3,20 +3,20 @@ if [[ $# -ne 2 ]]; then
   echo "run_ner.sh <batch_size> <gpu>"
   exit 1
 fi
-prefix="mt-dnn-nerall-pos"
+prefix="mt-dnn-ner50-pos-finepos-chunking"
 BATCH_SIZE=$1
 gpu=$2
 echo "export CUDA_VISIBLE_DEVICES=${gpu}"
 export CUDA_VISIBLE_DEVICES=${gpu}
 tstr=$(date +"%FT%H%M")
 
-train_datasets="nerall,pos"
+train_datasets="nerall,pos,finepos,chunking"
 test_datasets="nerall"
 MODEL_ROOT="checkpoints"
 
 BERT_PATH="mt_dnn_models/Japanese_L-12_H-768_A-12_E-30_BPE/"
 BERT_CONFIG_PATH="mt_dnn_models/Japanese_L-12_H-768_A-12_E-30_BPE/bert_config.json"
-DATA_DIR="data/bccwj_all_class"
+DATA_DIR="data/bccwj_50_class"
 TASK_DEF_PATH="experiments/japanese/japanese_task_def.yml"
 
 optim="adamax"
