@@ -141,40 +141,40 @@ def generate_decoder_opt(enable_san, max_opt):
     return opt_v
 
 def main():
-    logger.info('Launching the MT-DNN training')
+    logger.info('Launching the MT-DNN evaluation')
     opt = vars(args)
     # update data dir
     opt['data_dir'] = data_dir
     batch_size = args.batch_size
-    train_data_list = []
+    # train_data_list = []
     tasks = {}
     tasks_class = {}
     nclass_list = []
-    decoder_opts = []
-    dropout_list = []
+    # decoder_opts = []
+    # dropout_list = []
 
     for dataset in args.train_datasets:
         prefix = dataset.split('_')[0]
         if prefix in tasks: continue
         assert prefix in task_defs.n_class_map
         assert prefix in task_defs.data_type_map
-        data_type = task_defs.data_type_map[prefix]
+        # data_type = task_defs.data_type_map[prefix]
         nclass = task_defs.n_class_map[prefix]
-        task_id = len(tasks)
-        if args.mtl_opt > 0:
-            task_id = tasks_class[nclass] if nclass in tasks_class else len(tasks_class)
+    #     task_id = len(tasks)
+    #     if args.mtl_opt > 0:
+    #         task_id = tasks_class[nclass] if nclass in tasks_class else len(tasks_class)
 
-        task_type = task_defs.task_type_map[prefix]
-        pw_task = False
-        if task_type == TaskType.Ranking:
-            pw_task = True
+    #     task_type = task_defs.task_type_map[prefix]
+    #     pw_task = False
+    #     if task_type == TaskType.Ranking:
+    #         pw_task = True
 
-        # dopt = generate_decoder_opt(task_defs.enable_san_map[prefix], opt['answer_opt'])
-        dopt = task_defs.enable_san_map[prefix]
-        if task_id < len(decoder_opts):
-            decoder_opts[task_id] = min(decoder_opts[task_id], dopt)
-        else:
-            decoder_opts.append(dopt)
+    #     # dopt = generate_decoder_opt(task_defs.enable_san_map[prefix], opt['answer_opt'])
+    #     dopt = task_defs.enable_san_map[prefix]
+    #     if task_id < len(decoder_opts):
+    #         decoder_opts[task_id] = min(decoder_opts[task_id], dopt)
+    #     else:
+    #         decoder_opts.append(dopt)
 
         if prefix not in tasks:
             tasks[prefix] = len(tasks)
@@ -184,24 +184,24 @@ def main():
             tasks_class[nclass] = len(tasks_class)
             if args.mtl_opt > 0: nclass_list.append(nclass)
 
-        dropout_p = task_defs.dropout_p_map.get(prefix, args.dropout_p)
-        dropout_list.append(dropout_p)
+    #     dropout_p = task_defs.dropout_p_map.get(prefix, args.dropout_p)
+    #     dropout_list.append(dropout_p)
 
-        train_path = os.path.join(data_dir, '{}_train.json'.format(dataset))
-        logger.info('Loading {} as task {}'.format(train_path, task_id))
-        train_data = BatchGen(BatchGen.load(train_path, True, pairwise=pw_task, maxlen=args.max_seq_len),
-                              batch_size=batch_size,
-                              dropout_w=args.dropout_w,
-                              gpu=args.cuda,
-                              task_id=task_id,
-                              maxlen=args.max_seq_len,
-                              pairwise=pw_task,
-                              data_type=data_type,
-                              task_type=task_type)
-        train_data_list.append(train_data)
+    #     train_path = os.path.join(data_dir, '{}_train.json'.format(dataset))
+    #     logger.info('Loading {} as task {}'.format(train_path, task_id))
+    #     train_data = BatchGen(BatchGen.load(train_path, True, pairwise=pw_task, maxlen=args.max_seq_len),
+    #                           batch_size=batch_size,
+    #                           dropout_w=args.dropout_w,
+    #                           gpu=args.cuda,
+    #                           task_id=task_id,
+    #                           maxlen=args.max_seq_len,
+    #                           pairwise=pw_task,
+    #                           data_type=data_type,
+    #                           task_type=task_type)
+    #     train_data_list.append(train_data)
 
-    opt['answer_opt'] = decoder_opts
-    opt['tasks_dropout_p'] = dropout_list
+    # opt['answer_opt'] = decoder_opts
+    # opt['tasks_dropout_p'] = dropout_list
 
     args.label_size = ','.join([str(l) for l in nclass_list])
     logger.info(args.label_size)
@@ -249,18 +249,18 @@ def main():
     logger.info(opt)
     logger.info('#' * 20)
 
-    all_iters = [iter(item) for item in train_data_list]
-    all_lens = [len(bg) for bg in train_data_list]
+    # all_iters = [iter(item) for item in train_data_list]
+    # all_lens = [len(bg) for bg in train_data_list]
 
-    # div number of grad accumulation. 
-    num_all_batches = args.epochs * sum(all_lens) // args.grad_accumulation_step
-    logger.info('############# Gradient Accumulation Infor #############')
-    logger.info('number of step: {}'.format(args.epochs * sum(all_lens)))
-    logger.info('number of grad grad_accumulation step: {}'.format(args.grad_accumulation_step))
-    logger.info('adjusted number of step: {}'.format(num_all_batches))
+    # # div number of grad accumulation. 
+    # num_all_batches = args.epochs * sum(all_lens) // args.grad_accumulation_step
+    # logger.info('############# Gradient Accumulation Infor #############')
+    # logger.info('number of step: {}'.format(args.epochs * sum(all_lens)))
+    # logger.info('number of grad grad_accumulation step: {}'.format(args.grad_accumulation_step))
+    # logger.info('adjusted number of step: {}'.format(num_all_batches))
 
-    if len(train_data_list) > 1 and args.ratio > 0:
-        num_all_batches = int(args.epochs * (len(train_data_list[0]) * (1 + args.ratio)))
+    # if len(train_data_list) > 1 and args.ratio > 0:
+    #     num_all_batches = int(args.epochs * (len(train_data_list[0]) * (1 + args.ratio)))
 
     bert_config_path = args.bert_config_path
     state_dict = None
@@ -277,71 +277,72 @@ def main():
         config = BertConfig(vocab_size_or_config_json_file=30522).to_dict()
         opt.update(config)
 
-    model = MTDNNModel(opt, bert_init_checkpoint=args.init_checkpoint, state_dict=state_dict, num_train_step=num_all_batches)
-    if args.resume and args.model_ckpt:
-        logger.info('loading model from {}'.format(args.model_ckpt))
-        model.load(args.model_ckpt)
+    model = MTDNNModel(opt, bert_init_checkpoint=args.init_checkpoint, state_dict=state_dict)
+    assert args.model_ckpt
+    logger.info('loading model from {}'.format(args.model_ckpt))
+    model.load(args.model_ckpt)
 
-    #### model meta str
-    headline = '############# Model Arch of MT-DNN #############'
-    ### print network
-    logger.info('\n{}\n{}\n'.format(headline, model.network))
+    # #### model meta str
+    # headline = '############# Model Arch of MT-DNN #############'
+    # ### print network
+    # logger.info('\n{}\n{}\n'.format(headline, model.network))
 
-    # dump config
-    config_file = os.path.join(output_dir, 'config.json')
-    with open(config_file, 'w', encoding='utf-8') as writer:
-        writer.write('{}\n'.format(json.dumps(opt)))
-        writer.write('\n{}\n{}\n'.format(headline, model.network))
+    # # dump config
+    # config_file = os.path.join(output_dir, 'config.json')
+    # with open(config_file, 'w', encoding='utf-8') as writer:
+    #     writer.write('{}\n'.format(json.dumps(opt)))
+    #     writer.write('\n{}\n{}\n'.format(headline, model.network))
 
-    logger.info("Total number of params: {}".format(model.total_param))
+    # logger.info("Total number of params: {}".format(model.total_param))
 
     if args.freeze_layers > 0:
         model.network.freeze_layers(args.freeze_layers)
 
-    for epoch in range(0, args.epochs):
+    # for epoch in range(0, args.epochs):
+    if True:
         logger.warning('At epoch {}'.format(epoch))
-        for train_data in train_data_list:
-            train_data.reset()
-        start = datetime.now()
-        all_indices = []
-        if len(train_data_list) > 1 and args.ratio > 0:
-            main_indices = [0] * len(train_data_list[0])
-            extra_indices = []
-            for i in range(1, len(train_data_list)):
-                extra_indices += [i] * len(train_data_list[i])
-            random_picks = int(min(len(train_data_list[0]) * args.ratio, len(extra_indices)))
-            extra_indices = np.random.choice(extra_indices, random_picks, replace=False)
-            if args.mix_opt > 0:
-                extra_indices = extra_indices.tolist()
-                random.shuffle(extra_indices)
-                all_indices = extra_indices + main_indices
-            else:
-                all_indices = main_indices + extra_indices.tolist()
+        # for train_data in train_data_list:
+        #     train_data.reset()
+        # start = datetime.now()
+        # all_indices = []
+        # if len(train_data_list) > 1 and args.ratio > 0:
+        #     main_indices = [0] * len(train_data_list[0])
+        #     extra_indices = []
+        #     for i in range(1, len(train_data_list)):
+        #         extra_indices += [i] * len(train_data_list[i])
+        #     random_picks = int(min(len(train_data_list[0]) * args.ratio, len(extra_indices)))
+        #     extra_indices = np.random.choice(extra_indices, random_picks, replace=False)
+        #     if args.mix_opt > 0:
+        #         extra_indices = extra_indices.tolist()
+        #         random.shuffle(extra_indices)
+        #         all_indices = extra_indices + main_indices
+        #     else:
+        #         all_indices = main_indices + extra_indices.tolist()
 
-        else:
-            for i in range(1, len(train_data_list)):
-                all_indices += [i] * len(train_data_list[i])
-            if args.mix_opt > 0:
-                random.shuffle(all_indices)
-            all_indices += [0] * len(train_data_list[0])
-        if args.mix_opt < 1:
-            random.shuffle(all_indices)
+        # else:
+        #     for i in range(1, len(train_data_list)):
+        #         all_indices += [i] * len(train_data_list[i])
+        #     if args.mix_opt > 0:
+        #         random.shuffle(all_indices)
+        #     all_indices += [0] * len(train_data_list[0])
+        # if args.mix_opt < 1:
+        #     random.shuffle(all_indices)
 
-        for i in range(len(all_indices)):
-            task_id = all_indices[i]
-            batch_meta, batch_data = next(all_iters[task_id])
-            model.update(batch_meta, batch_data)
-            if (model.local_updates) % (args.log_per_updates * args.grad_accumulation_step) == 0 or model.local_updates == 1:
-                ramaining_time = str((datetime.now() - start) / (i + 1) * (len(all_indices) - i - 1)).split('.')[0]
-                logger.info('Task [{0:2}] updates[{1:6}] train loss[{2:.5f}] remaining[{3}]'.format(task_id,
-                                                                                                    model.updates,
-                                                                                                    model.train_loss.avg,
-                                                                                                    ramaining_time))
+        # for i in range(len(all_indices)):
+        #     task_id = all_indices[i]
+        #     batch_meta, batch_data = next(all_iters[task_id])
+        #     model.update(batch_meta, batch_data)
+        #     if (model.local_updates) % (args.log_per_updates * args.grad_accumulation_step) == 0 or model.local_updates == 1:
+        #         ramaining_time = str((datetime.now() - start) / (i + 1) * (len(all_indices) - i - 1)).split('.')[0]
+        #         logger.info('Task [{0:2}] updates[{1:6}] train loss[{2:.5f}] remaining[{3}]'.format(task_id,
+        #                                                                                             model.updates,
+        #                                                                                             model.train_loss.avg,
+        #                                                                                             ramaining_time))
 
-            if args.save_per_updates_on and ((model.local_updates) % (args.save_per_updates * args.grad_accumulation_step) == 0):
-                model_file = os.path.join(output_dir, 'model_{}_{}.pt'.format(epoch, model.updates))
-                logger.info('Saving mt-dnn model to {}'.format(model_file))
-                model.save(model_file)
+        #     if args.save_per_updates_on and ((model.local_updates) % (args.save_per_updates * args.grad_accumulation_step) == 0):
+        #         model_file = os.path.join(output_dir, 'model_{}_{}.pt'.format(epoch, model.updates))
+        #         logger.info('Saving mt-dnn model to {}'.format(model_file))
+        #         model.save(model_file)
 
         for idx, dataset in enumerate(args.test_datasets):
             prefix = dataset.split('_')[0]
@@ -356,9 +357,9 @@ def main():
                 metric_file = os.path.join(output_dir, '{}_dev_metrics_{}.json'.format(dataset, epoch))
                 dump(metric_file, dev_metrics)
 
-                # score_file = os.path.join(output_dir, '{}_dev_scores_{}.json'.format(dataset, epoch))
-                # results = {'metrics': dev_metrics, 'predictions': dev_predictions, 'uids': dev_ids, 'scores': scores}
-                # dump(score_file, results)
+                score_file = os.path.join(output_dir, '{}_dev_scores_{}.json'.format(dataset, epoch))
+                results = {'metrics': dev_metrics, 'predictions': dev_predictions, 'uids': dev_ids, 'scores': scores}
+                dump(score_file, results)
                 # official_score_file = os.path.join(output_dir, '{}_dev_scores_{}.tsv'.format(dataset, epoch))
                 # submit(official_score_file, results, label_dict)
 
@@ -373,15 +374,15 @@ def main():
                 metric_file = os.path.join(output_dir, '{}_test_metrics_{}.json'.format(dataset, epoch))
                 dump(metric_file, test_metrics)
 
-                # score_file = os.path.join(output_dir, '{}_test_scores_{}.json'.format(dataset, epoch))
-                # results = {'metrics': test_metrics, 'predictions': test_predictions, 'uids': test_ids, 'scores': scores}
-                # dump(score_file, results)
+                score_file = os.path.join(output_dir, '{}_test_scores_{}.json'.format(dataset, epoch))
+                results = {'metrics': test_metrics, 'predictions': test_predictions, 'uids': test_ids, 'scores': scores}
+                dump(score_file, results)
                 # official_score_file = os.path.join(output_dir, '{}_test_scores_{}.tsv'.format(dataset, epoch))
                 # submit(official_score_file, results, label_dict)
                 # logger.info('[new test scores saved.]')
 
-        model_file = os.path.join(output_dir, 'model_{}.pt'.format(epoch))
-        model.save(model_file)
+        # model_file = os.path.join(output_dir, 'model_{}.pt'.format(epoch))
+        # model.save(model_file)
 
 
 if __name__ == '__main__':
