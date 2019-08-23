@@ -349,7 +349,8 @@ def main():
             dev_data = dev_data_list[idx]
             if dev_data is not None:
                 dev_metrics, dev_predictions, scores, golds, dev_ids= eval_model(model, dev_data,
-                                                                                 metric_meta=task_defs.metric_meta_map[prefix],
+                                                                                 task_defs.metric_meta_map[prefix],
+                                                                                 label_dict,
                                                                                  use_cuda=args.cuda)
                 for key, val in dev_metrics.items():
                     logger.warning("Task {0} -- epoch {1} -- Dev {2}: {3:.3f}".format(dataset, epoch, key, val))
@@ -366,7 +367,8 @@ def main():
             test_data = test_data_list[idx]
             if test_data is not None:
                 test_metrics, test_predictions, scores, golds, test_ids= eval_model(model, test_data,
-                                                                                    metric_meta=task_defs.metric_meta_map[prefix],
+                                                                                    task_defs.metric_meta_map[prefix],
+                                                                                    label_dict,
                                                                                     use_cuda=args.cuda, with_label=True)
                 for key, val in test_metrics.items():
                     logger.warning("Task {0} -- epoch {1} -- Test {2}: {3:.3f}".format(dataset, epoch, key, val))
