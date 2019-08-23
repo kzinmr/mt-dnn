@@ -299,8 +299,9 @@ def main():
         model.network.freeze_layers(args.freeze_layers)
 
     # for epoch in range(0, args.epochs):
+    epoch = os.path.basename(args.model_ckpt).split('.')[0].split('_')[-1]
     if True:
-        logger.warning('At epoch {}'.format(epoch))
+        # logger.warning('At epoch {}'.format(epoch))
         # for train_data in train_data_list:
         #     train_data.reset()
         # start = datetime.now()
