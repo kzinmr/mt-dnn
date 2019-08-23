@@ -23,7 +23,7 @@ import unicodedata
 from io import open
 import six
 
-from file_utils import cached_path
+from .file_utils import cached_path
 
 logger = logging.getLogger(__name__)
 
