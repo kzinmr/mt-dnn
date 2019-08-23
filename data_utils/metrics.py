@@ -5,17 +5,20 @@ from sklearn.metrics import matthews_corrcoef
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
 from scipy.stats import pearsonr, spearmanr
 
+with open('experiments/japanese/ene_labels_all.txt') as f:
+    LABELS = [i for i, l in enumerate(f.read().split('\n'), 4) if l.strip()]
+
 def compute_acc(predicts, labels):
     return 100.0 * accuracy_score(labels, predicts)
 
 def compute_f1(predicts, labels):
-    return 100.0 * f1_score(labels, predicts)
+    return 100.0 * f1_score(labels, predicts, labels=LABELS)
 
 def compute_micro_f1(predicts, labels):
-    return 100.0 * f1_score(labels, predicts, average='micro')
+    return 100.0 * f1_score(labels, predicts, labels=LABELS, average='micro')
 
 def compute_macro_f1(predicts, labels):
-    return 100.0 * f1_score(labels, predicts, average='macro')
+    return 100.0 * f1_score(labels, predicts, labels=LABELS, average='macro')
 
 def compute_mcc(predicts, labels):
     return 100.0 * matthews_corrcoef(labels, predicts)
@@ -29,22 +32,22 @@ def compute_spearman(predicts, labels):
     return 100.0 * scof
 
 def compute_precision(predicts, labels):
-    return 100.0 * precision_score(labels, predicts)
+    return 100.0 * precision_score(labels, predicts, labels=LABELS)
 
 def compute_micro_precision(predicts, labels):
-    return 100.0 * precision_score(labels, predicts, average='micro')
+    return 100.0 * precision_score(labels, predicts, labels=LABELS, average='micro')
 
 def compute_macro_precision(predicts, labels):
-    return 100.0 * precision_score(labels, predicts, average='macro')
+    return 100.0 * precision_score(labels, predicts, labels=LABELS, average='macro')
 
 def compute_recall(predicts, labels):
-    return 100.0 * recall_score(labels, predicts)
+    return 100.0 * recall_score(labels, predicts, labels=LABELS)
 
 def compute_micro_recall(predicts, labels):
-    return 100.0 * recall_score(labels, predicts, average='micro')
+    return 100.0 * recall_score(labels, predicts, labels=LABELS, average='micro')
 
 def compute_macro_recall(predicts, labels):
-    return 100.0 * recall_score(labels, predicts, average='macro')
+    return 100.0 * recall_score(labels, predicts, labels=LABELS, average='macro')
 
 class Metric(Enum):
     ACC = 0
