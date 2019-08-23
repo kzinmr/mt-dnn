@@ -160,9 +160,9 @@ def main():
         assert prefix in task_defs.data_type_map
         # data_type = task_defs.data_type_map[prefix]
         nclass = task_defs.n_class_map[prefix]
-    #     task_id = len(tasks)
-    #     if args.mtl_opt > 0:
-    #         task_id = tasks_class[nclass] if nclass in tasks_class else len(tasks_class)
+        task_id = len(tasks)
+        if args.mtl_opt > 0:
+            task_id = tasks_class[nclass] if nclass in tasks_class else len(tasks_class)
 
     #     task_type = task_defs.task_type_map[prefix]
     #     pw_task = False
