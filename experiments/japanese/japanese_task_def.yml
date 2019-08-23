@@ -196,8 +196,6 @@ nerall:
   - I-Planet
   - B-Constellation
   - I-Constellation
-  - B-Address_Other
-  - I-Address_Other
   - B-Postal_Address
   - I-Postal_Address
   - B-Phone_Number
@@ -280,8 +278,6 @@ nerall:
   - I-Decoration
   - B-Offence
   - I-Offence
-  - B-Service
-  - I-Service
   - B-Class
   - I-Class
   - B-Character
@@ -399,7 +395,6 @@ nerall:
   - B-Fish
   - I-Fish
   - B-Amphibia
-  - I-Amphibia
   - B-Reptile
   - I-Reptile
   - B-Bird
@@ -446,6 +441,8 @@ nerall:
   - I-Period_Month
   - B-Period_Year
   - I-Period_Year
+  - B-Numex_Other
+  - I-Numex_Other
   - B-Money
   - I-Money
   - B-Stock_Index
@@ -488,8 +485,6 @@ nerall:
   - I-Calorie
   - B-Seismic_Intensity
   - I-Seismic_Intensity
-  - B-Seismic_Magnitude
-  - I-Seismic_Magnitude
   - B-Countx_Other
   - I-Countx_Other
   - B-N_Person
@@ -519,7 +514,7 @@ nerall:
   - MACRO_Precision
   - MICRO_Recall
   - MACRO_Recall
-  n_class: 402
+  n_class: 397
   task_type: SequenceLabeling
 pos:
   data_format: PremiseOnly
