@@ -108,17 +108,22 @@ def eval_model(model, data, metric_meta, vocab, use_cuda=True, with_label=True, 
     data.reset()
     if use_cuda:
         model.cuda()
+    inputs = []
     predictions = []
     golds = []
     scores = []
     ids = []
     metrics = {}
     for batch_meta, batch_data in data:
+        # batch_data: input, _, mask
+        input_data = batch_data[0]  # (batch_size, batch_seq_length)
         score, pred, gold = model.predict(batch_meta, batch_data)
-
         batch_size = len(gold)
         true_seq_length = [len(g) for g in gold]
         batch_seq_length = int(len(pred) / batch_size)
+
+        inputs_ = [input_data[i * batch_seq_length:(i * batch_seq_length + t_l)] for i, t_l in enumerate(true_seq_length)]
+        inputs.extend(inputs_)
 
         preds = [pred[i * batch_seq_length:(i * batch_seq_length + t_l)] for i, t_l in enumerate(true_seq_length)]
         predictions.extend(preds)
@@ -128,6 +133,9 @@ def eval_model(model, data, metric_meta, vocab, use_cuda=True, with_label=True, 
 
         golds.extend(gold)
         ids.extend(batch_meta['uids'])
+
+    # print(inputs)
+    # print(golds)
 
     if beam_search:
         # print(id2label)
@@ -175,12 +183,14 @@ def eval_model(model, data, metric_meta, vocab, use_cuda=True, with_label=True, 
                     print(classification_report(
                 np.array(_flatten_list(golds))[use_indices],
                 np.array(_flatten_list(predictions))[use_indices],
-                labels=vocab.get_vocab_list()
+                labels=range(4, n_labels),
+                target_names=vocab.get_vocab_list()[4:]
                     ), file=f)
             print(classification_report(
                 np.array(_flatten_list(golds))[use_indices],
                 np.array(_flatten_list(predictions))[use_indices],
-                labels=vocab.get_vocab_list()
+                labels=range(4, n_labels),
+                target_names=vocab.get_vocab_list()[4:]
             ))
         for mm in metric_meta:
             metric_name = mm.name
@@ -190,5 +200,5 @@ def eval_model(model, data, metric_meta, vocab, use_cuda=True, with_label=True, 
                 np.array(_flatten_list(golds))[use_indices]
             )
             metrics[metric_name] = metric
-    return metrics, predictions, scores, golds, ids
+    return metrics, predictions, scores, golds, ids, inputs
 

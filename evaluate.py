@@ -16,6 +16,130 @@ from data_utils.utils import set_environment
 from data_utils.task_def import TaskType
 from mt_dnn.batcher import BatchGen
 from mt_dnn.model import MTDNNModel
+from experiments.japanese.mytokenization import BertTokenizer
+
+
+
+class SubwordWordConverter:
+
+    def __init__(self, tokenizer, id2label, export_file=None):
+        self.tokenizer = tokenizer
+        self.id2label = id2label
+        label2id = {v: k for k, v in id2label.items()}
+        self.LABELID_PAD = 0
+        self.LABELID_CLS = label2id['[CLS]']
+        self.LABELID_SEP = label2id['[SEP]']
+        self.LABELID_X = label2id['X']
+        self.ignore_label_ids = {self.LABELID_PAD,
+                                 self.LABELID_CLS, self.LABELID_SEP}
+        self.TOKENID_PAD = tokenizer.convert_tokens_to_ids(['[PAD]'])[0]
+        self.TOKENID_CLS = tokenizer.convert_tokens_to_ids(['[CLS]'])[0]
+        self.TOKENID_SEP = tokenizer.convert_tokens_to_ids(['[SEP]'])[0]
+        self.ignore_token_ids = {self.TOKENID_PAD,
+                                 self.TOKENID_CLS, self.TOKENID_SEP}
+
+        self.export_file = export_file
+
+    @staticmethod
+    def convert_subword_to_word_by_label(subwords, labels_gold):
+        # subword.startswith('##') == True だけがsubwordとは限らない
+        # 'X' label を subword　-> word の復元に用いる
+        words, labels = [], []
+        for sw, lb in zip(subwords, labels_gold):
+            if lb == 'X':
+                assert len(words) > 0
+                prev = words[-1]
+                words = words[:-1]
+                word = prev + sw[2:]
+            else:
+                word = sw
+                labels.append(lb)
+            words.append(word)
+        return words, labels
+
+    def check_separator_aligned(self, inputs, labels):
+        for i, label in zip(inputs, labels):
+            if label == self.LABELID_CLS:
+                if i != self.TOKENID_CLS:
+                    return False
+            elif label == self.LABELID_SEP:
+                if i != self.TOKENID_SEP:
+                    return False
+        return True
+
+    def filter_token_ids(self, token_ids):
+        return [i for i in token_ids if i not in self.ignore_token_ids]
+
+    def filter_label_ids(self, label_ids):
+        return [l for l in label_ids if l not in self.ignore_label_ids]
+
+    def convert_id_to_surface_token(self, token_ids):
+        token_ids = self.filter_token_ids(token_ids)
+        return self.tokenizer.convert_ids_to_tokens(token_ids)
+
+    def convert_id_to_surface_label(self, label_ids):
+        label_ids = self.filter_label_ids(label_ids)
+        return [self.id2label[i] for i in label_ids]
+
+    def convert_tokens_to_words(self, token_ids, label_ids_gold, subword=False):
+        # subword　-> word の復元
+        subwords = self.convert_id_to_surface_token(token_ids)
+        labels = self.convert_id_to_surface_label(label_ids_gold)
+        if subword:
+            return subwords, labels
+        else:
+            words, labels = self.convert_subword_to_word_by_label(
+                zip(subwords, labels))
+            return words, labels
+
+    def filter_label_ids_by_gold(self, label_ids_pred, label_ids_gold):
+        label_ids_pred = self.filter_label_ids(label_ids_pred)
+        label_ids_gold = self.filter_label_ids(label_ids_gold)
+        label_ids_pred = [l for l, lg in zip(label_ids_pred, label_ids_gold)
+                          if lg != self.LABELID_X]
+        return label_ids_pred
+
+    def convert_ids_to_surfaces(self, token_ids, label_ids_pred, label_ids_gold, subword=False):
+        # gold label が 'X' であるか否かを基点に subword かどうかを認識する
+        subwords = self.convert_id_to_surface_token(token_ids)
+        labels_gold = self.convert_id_to_surface_label(label_ids_gold)
+        if subword:
+            words = subwords
+        else:
+            # subwords => words
+            words, labels_gold = self.convert_subword_to_word_by_label(
+                subwords, labels_gold)
+            # subword_labels => word_labels
+            label_ids_pred = self.filter_label_ids_by_gold(
+                label_ids_pred, label_ids_gold)
+        labels_pred = self.convert_id_to_surface_label(label_ids_pred)
+
+        return words, labels_pred, labels_gold
+
+    def convert_ids_to_surfaces_list(self, token_ids_list, label_ids_list_pred, label_ids_list_gold, subword=False):
+        output_sentences = []
+        tokens_list, labels_list_pred, labels_list_gold = [], [], []
+        for token_ids, label_ids_pred, label_ids_gold in zip(token_ids_list, label_ids_list_pred, label_ids_list_gold):
+            if self.check_separator_aligned(token_ids, label_ids_pred):
+                words, labels_pred, labels_gold = self.convert_ids_to_surfaces(
+                    token_ids, label_ids_pred, label_ids_gold, subword=subword)
+                tokens_list.append(words)
+                labels_list_pred.append(labels_pred)
+                labels_list_gold.append(labels_gold)
+
+                # export
+                if self.export_file is not None:
+                    output_lines = [f'{word}\t{label}\t{label_gold}'
+                                    for word, label, label_gold in zip(words, labels_pred, labels_gold)]
+                    output_line = "\n".join(output_lines)
+                    output_line += "\n\n"
+                    output_sentences.append(output_line)
+        if self.export_file is not None:
+            with open(self.export_file, 'w', encoding='utf-8') as writer:
+                for output_sentence in output_sentences:
+                    writer.write(output_sentence)
+
+        return tokens_list, labels_list_pred, labels_list_gold
 
 
 def model_config(parser):
@@ -51,6 +175,7 @@ def data_config(parser):
     parser.add_argument('--log_file', default='mt-dnn-train.log', help='path for log file.')
     parser.add_argument("--init_checkpoint", default='mt_dnn_models/bert_model_base.pt', type=str)
     parser.add_argument("--bert_config_path", default='mt_dnn_models/bert_model_base.pt', type=str)
+    parser.add_argument('--bert_vocab', type=str, default='mt_dnn_models/vocab.txt')
     parser.add_argument('--data_dir', default='data/canonical_data/mt_dnn_uncased_lower')
     parser.add_argument('--data_sort_on', action='store_true')
     parser.add_argument('--name', default='farmer')
@@ -300,6 +425,7 @@ def main():
 
     # for epoch in range(0, args.epochs):
     epoch = os.path.basename(args.model_ckpt).split('.')[0].split('_')[-1]
+    tokenizer = BertTokenizer(args.bert_vocab, do_lower_case=False)
     if True:
         # logger.warning('At epoch {}'.format(epoch))
         # for train_data in train_data_list:
@@ -351,7 +477,7 @@ def main():
             dev_data = dev_data_list[idx]
             if dev_data is not None:
                 classification_report_file = os.path.join(output_dir, '{}_dev_classification_report_{}.json'.format(dataset, epoch))
-                dev_metrics, dev_predictions, scores, golds, dev_ids= eval_model(model, dev_data, task_defs.metric_meta_map[prefix], label_dict,
+                dev_metrics, dev_predictions, scores, golds, dev_ids, dev_inputs = eval_model(model, dev_data, task_defs.metric_meta_map[prefix], label_dict,
                                                                                  use_cuda=args.cuda,
                                                                                  export_file=classification_report_file)
                 for key, val in dev_metrics.items():
@@ -365,11 +491,20 @@ def main():
                 # official_score_file = os.path.join(output_dir, '{}_dev_scores_{}.tsv'.format(dataset, epoch))
                 # submit(official_score_file, results, label_dict)
 
+                export_file = os.path.join(output_dir, '{}_dev_token_label_pred_{}.txt'.format(dataset, epoch))
+                swc = SubwordWordConverter(tokenizer, label_dict.ind2tok, export_file)
+                token_ids = [inputs.cpu().detach().numpy() for inputs_list in dev_inputs for inputs in inputs_list]
+                tokens_list, labels_list_pred, labels_list_gold = swc.convert_ids_to_surfaces_list(token_ids, dev_predictions, golds)
+                # chunk-wise evaluation
+
+
             # test eval
             test_data = test_data_list[idx]
             if test_data is not None:
                 classification_report_file = os.path.join(output_dir, '{}_test_classification_report_{}.json'.format(dataset, epoch))
-                test_metrics, test_predictions, scores, golds, test_ids= eval_model(model, test_data, task_defs.metric_meta_map[prefix], label_dict,
+                test_metrics, test_predictions, scores, golds, test_ids, test_inputs = eval_model(model, test_data,
+                                                                                    task_defs.metric_meta_map[prefix],
+                                                                                    label_dict,
                                                                                     use_cuda=args.cuda, with_label=True,
                                                                                     export_file=classification_report_file)
                 for key, val in test_metrics.items():
@@ -383,6 +518,11 @@ def main():
                 # official_score_file = os.path.join(output_dir, '{}_test_scores_{}.tsv'.format(dataset, epoch))
                 # submit(official_score_file, results, label_dict)
                 # logger.info('[new test scores saved.]')
+                export_file = os.path.join(output_dir, '{}_test_token_label_pred_{}.txt'.format(dataset, epoch))
+                swc = SubwordWordConverter(tokenizer, label_dict.ind2tok, export_file)
+                token_ids = [inputs.cpu().detach().numpy() for inputs_list in test_inputs for inputs in inputs_list]
+                tokens_list, labels_list_pred, labels_list_gold = swc.convert_ids_to_surfaces_list(token_ids, test_predictions, golds)
+                # chunk-wise evaluation
 
         # model_file = os.path.join(output_dir, 'model_{}.pt'.format(epoch))
         # model.save(model_file)
