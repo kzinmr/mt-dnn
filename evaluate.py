@@ -150,8 +150,8 @@ def main():
     tasks = {}
     tasks_class = {}
     nclass_list = []
-    # decoder_opts = []
-    # dropout_list = []
+    decoder_opts = []
+    dropout_list = []
 
     for dataset in args.train_datasets:
         prefix = dataset.split('_')[0]
@@ -169,12 +169,12 @@ def main():
     #     if task_type == TaskType.Ranking:
     #         pw_task = True
 
-    #     # dopt = generate_decoder_opt(task_defs.enable_san_map[prefix], opt['answer_opt'])
-    #     dopt = task_defs.enable_san_map[prefix]
-    #     if task_id < len(decoder_opts):
-    #         decoder_opts[task_id] = min(decoder_opts[task_id], dopt)
-    #     else:
-    #         decoder_opts.append(dopt)
+        # dopt = generate_decoder_opt(task_defs.enable_san_map[prefix], opt['answer_opt'])
+        dopt = task_defs.enable_san_map[prefix]
+        if task_id < len(decoder_opts):
+            decoder_opts[task_id] = min(decoder_opts[task_id], dopt)
+        else:
+            decoder_opts.append(dopt)
 
         if prefix not in tasks:
             tasks[prefix] = len(tasks)
@@ -184,8 +184,8 @@ def main():
             tasks_class[nclass] = len(tasks_class)
             if args.mtl_opt > 0: nclass_list.append(nclass)
 
-    #     dropout_p = task_defs.dropout_p_map.get(prefix, args.dropout_p)
-    #     dropout_list.append(dropout_p)
+        dropout_p = task_defs.dropout_p_map.get(prefix, args.dropout_p)
+        dropout_list.append(dropout_p)
 
     #     train_path = os.path.join(data_dir, '{}_train.json'.format(dataset))
     #     logger.info('Loading {} as task {}'.format(train_path, task_id))
@@ -200,8 +200,8 @@ def main():
     #                           task_type=task_type)
     #     train_data_list.append(train_data)
 
-    # opt['answer_opt'] = decoder_opts
-    # opt['tasks_dropout_p'] = dropout_list
+    opt['answer_opt'] = decoder_opts
+    opt['tasks_dropout_p'] = dropout_list
 
     args.label_size = ','.join([str(l) for l in nclass_list])
     logger.info(args.label_size)
