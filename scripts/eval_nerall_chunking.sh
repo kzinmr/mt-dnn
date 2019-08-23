@@ -6,7 +6,7 @@ fi
 prefix="mt-dnn-nerall-chunking"
 BATCH_SIZE=$1
 gpu=$2
-model_num=$3
+model_ckpt=$3  # model_ckpt="${model_dir}/model_${model_num}.pt"
 echo "export CUDA_VISIBLE_DEVICES=${gpu}"
 export CUDA_VISIBLE_DEVICES=${gpu}
 tstr=$(date +"%FT%H%M")
@@ -27,6 +27,5 @@ global_grad_clipping=1
 # epochs=5
 
 model_dir="checkpoints/${prefix}_${optim}_gc${grad_clipping}_ggc${global_grad_clipping}_${tstr}"
-model_ckpt="${model_dir}/model_${model_num}.pt"
 log_file="${model_dir}/log.log"
 python evaluate.py --data_dir ${DATA_DIR} --bert_config_path ${BERT_CONFIG_PATH} --init_checkpoint ${BERT_PATH} --batch_size ${BATCH_SIZE} --output_dir ${model_dir} --log_file ${log_file} --optimizer ${optim} --train_datasets ${train_datasets} --test_datasets ${test_datasets} --multi_gpu_on --task_def ${TASK_DEF_PATH} --model_ckpt ${model_ckpt}
