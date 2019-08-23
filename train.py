@@ -348,7 +348,7 @@ def main():
             label_dict = task_defs.global_map.get(prefix, None)
             dev_data = dev_data_list[idx]
             if dev_data is not None:
-                dev_metrics, dev_predictions, scores, golds, dev_ids= eval_model(model, dev_data,
+                dev_metrics, dev_predictions, scores, golds, dev_ids, _ = eval_model(model, dev_data,
                                                                                  task_defs.metric_meta_map[prefix],
                                                                                  label_dict,
                                                                                  use_cuda=args.cuda)
@@ -366,7 +366,7 @@ def main():
             # test eval
             test_data = test_data_list[idx]
             if test_data is not None:
-                test_metrics, test_predictions, scores, golds, test_ids= eval_model(model, test_data,
+                test_metrics, test_predictions, scores, golds, test_ids, _ = eval_model(model, test_data,
                                                                                     task_defs.metric_meta_map[prefix],
                                                                                     label_dict,
                                                                                     use_cuda=args.cuda, with_label=True)
