@@ -26,16 +26,16 @@ class SubwordWordConverter:
         self.tokenizer = tokenizer
         self.id2label = id2label
         label2id = {v: k for k, v in id2label.items()}
-        self.LABELID_PAD = 0
+        # self.LABELID_PAD = 0
         self.LABELID_CLS = label2id['[CLS]']
         self.LABELID_SEP = label2id['[SEP]']
         self.LABELID_X = label2id['X']
-        self.ignore_label_ids = {self.LABELID_PAD,
+        self.ignore_label_ids = { # self.LABELID_PAD,
                                  self.LABELID_CLS, self.LABELID_SEP}
-        self.TOKENID_PAD = tokenizer.convert_tokens_to_ids(['[PAD]'])[0]
+        # self.TOKENID_PAD = tokenizer.convert_tokens_to_ids(['[PAD]'])[0]
         self.TOKENID_CLS = tokenizer.convert_tokens_to_ids(['[CLS]'])[0]
         self.TOKENID_SEP = tokenizer.convert_tokens_to_ids(['[SEP]'])[0]
-        self.ignore_token_ids = {self.TOKENID_PAD,
+        self.ignore_token_ids = {  #self.TOKENID_PAD,
                                  self.TOKENID_CLS, self.TOKENID_SEP}
 
         self.export_file = export_file
@@ -50,7 +50,7 @@ class SubwordWordConverter:
                 assert len(words) > 0
                 prev = words[-1]
                 words = words[:-1]
-                word = prev + sw[2:]
+                word = prev + sw[2:]  # '##' 以降
             else:
                 word = sw
                 labels.append(lb)
@@ -521,7 +521,21 @@ def main():
                 export_file = os.path.join(output_dir, '{}_test_token_label_pred_{}.txt'.format(dataset, epoch))
                 swc = SubwordWordConverter(tokenizer, label_dict.ind2tok, export_file)
                 token_ids = [inputs.cpu().detach().numpy() for inputs_list in test_inputs for inputs in inputs_list]
+
+                # sentences = [
+                #     [(token, label_pred, label_gold)
+                #      for token, label_pred, label_gold in zip(tokens, labels_pred, labels_gold)]
+                #     for tokens, labels_pred, labels_gold in zip(token_ids, test_predictions, golds)]
+                # sentences_prev = [sentence for sentence in sentences if any(x[-1] != 'O' for x in sentence)]
+
                 tokens_list, labels_list_pred, labels_list_gold = swc.convert_ids_to_surfaces_list(token_ids, test_predictions, golds)
+
+                # sentences = [
+                #     [(token, label_pred, label_gold)
+                #      for token, label_pred, label_gold in zip(tokens, labels_pred, labels_gold)]
+                #     for tokens, labels_pred, labels_gold in zip(tokens_list, labels_list_pred, labels_list_gold)]
+                # sentences_p = [sentence for sentence in sentences if any(x[-1] != 'O' for x in sentence)]
+
                 # chunk-wise evaluation
 
         # model_file = os.path.join(output_dir, 'model_{}.pt'.format(epoch))
