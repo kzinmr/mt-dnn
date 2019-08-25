@@ -256,7 +256,7 @@ task_defs = TaskDefs(args.task_def)
 
 
 def dump(path, data):
-    with open(path, 'w') as f:
+    with open(path, 'w', encoding='utf8') as f:
         json.dump(data, f)
 
 def generate_decoder_opt(enable_san, max_opt):
@@ -486,15 +486,15 @@ def main():
                 dump(metric_file, dev_metrics)
 
                 score_file = os.path.join(output_dir, '{}_dev_scores_{}.json'.format(dataset, epoch))
-                results = {'metrics': dev_metrics, 'predictions': dev_predictions, 'uids': dev_ids, 'scores': scores}
+                results = {'metrics': dev_metrics, 'predictions': dev_predictions, 'uids': dev_ids}  #, 'scores': scores}
                 dump(score_file, results)
                 # official_score_file = os.path.join(output_dir, '{}_dev_scores_{}.tsv'.format(dataset, epoch))
                 # submit(official_score_file, results, label_dict)
 
                 export_file = os.path.join(output_dir, '{}_dev_token_label_pred_{}.txt'.format(dataset, epoch))
                 swc = SubwordWordConverter(tokenizer, label_dict.ind2tok, export_file)
-                token_ids = [inputs.cpu().detach().numpy() for inputs_list in dev_inputs for inputs in inputs_list]
-                tokens_list, labels_list_pred, labels_list_gold = swc.convert_ids_to_surfaces_list(token_ids, dev_predictions, golds)
+
+                tokens_list, labels_list_pred, labels_list_gold = swc.convert_ids_to_surfaces_list(dev_inputs, dev_predictions, golds)
                 # chunk-wise evaluation
 
 
@@ -513,14 +513,13 @@ def main():
                 dump(metric_file, test_metrics)
 
                 score_file = os.path.join(output_dir, '{}_test_scores_{}.json'.format(dataset, epoch))
-                results = {'metrics': test_metrics, 'predictions': test_predictions, 'uids': test_ids, 'scores': scores}
+                results = {'metrics': test_metrics, 'predictions': test_predictions, 'uids': test_ids}  # , 'scores': scores}
                 dump(score_file, results)
                 # official_score_file = os.path.join(output_dir, '{}_test_scores_{}.tsv'.format(dataset, epoch))
                 # submit(official_score_file, results, label_dict)
                 # logger.info('[new test scores saved.]')
                 export_file = os.path.join(output_dir, '{}_test_token_label_pred_{}.txt'.format(dataset, epoch))
                 swc = SubwordWordConverter(tokenizer, label_dict.ind2tok, export_file)
-                token_ids = [inputs.cpu().detach().numpy() for inputs_list in test_inputs for inputs in inputs_list]
 
                 # sentences = [
                 #     [(token, label_pred, label_gold)
@@ -528,7 +527,7 @@ def main():
                 #     for tokens, labels_pred, labels_gold in zip(token_ids, test_predictions, golds)]
                 # sentences_prev = [sentence for sentence in sentences if any(x[-1] != 'O' for x in sentence)]
 
-                tokens_list, labels_list_pred, labels_list_gold = swc.convert_ids_to_surfaces_list(token_ids, test_predictions, golds)
+                tokens_list, labels_list_pred, labels_list_gold = swc.convert_ids_to_surfaces_list(test_inputs, test_predictions, golds)
 
                 # sentences = [
                 #     [(token, label_pred, label_gold)

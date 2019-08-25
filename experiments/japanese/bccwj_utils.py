@@ -105,6 +105,8 @@ def eval_model(model, data, metric_meta, vocab, use_cuda=True, with_label=True, 
     label2id = vocab.tok2ind
     id2label = vocab.ind2tok
     n_labels = len(label2id)
+    all_labels = [id2label[i] for i in range(n_labels)]
+
     data.reset()
     if use_cuda:
         model.cuda()
@@ -122,7 +124,8 @@ def eval_model(model, data, metric_meta, vocab, use_cuda=True, with_label=True, 
         true_seq_length = [len(g) for g in gold]
         batch_seq_length = int(len(pred) / batch_size)
 
-        inputs_ = [input_data[i * batch_seq_length:(i * batch_seq_length + t_l)] for i, t_l in enumerate(true_seq_length)]
+        # Make (inputs_, preds, gold)'s shape as (batch_size, true_seq_length_i)
+        inputs_ = [input_sentence[:t_l].cpu().detach().numpy().tolist() for input_sentence, t_l in zip(input_data, true_seq_length)]
         inputs.extend(inputs_)
 
         preds = [pred[i * batch_seq_length:(i * batch_seq_length + t_l)] for i, t_l in enumerate(true_seq_length)]
@@ -134,9 +137,7 @@ def eval_model(model, data, metric_meta, vocab, use_cuda=True, with_label=True, 
         golds.extend(gold)
         ids.extend(batch_meta['uids'])
 
-    # print(inputs)
-    # print(golds)
-
+    # (inputs, predictions, golds)'s shape: (n_data, true_seq_length_i)
     if beam_search:
         # print(id2label)
         # print([[id2label[g] for g in gs] for gs in golds])
@@ -175,22 +176,27 @@ def eval_model(model, data, metric_meta, vocab, use_cuda=True, with_label=True, 
     # LabelMapper.add("[CLS]")
     # LabelMapper.add("[SEP]")
     # LabelMapper.add("O")
+
     use_indices = [label > 3 for label in _flatten_list(golds)]
     if with_label:
         if any(use_indices):
             if export_file is not None:
-                with open(export_file, 'w') as f:
+                with open(export_file, 'w', encoding='utf8') as f:
                     print(classification_report(
                 np.array(_flatten_list(golds))[use_indices],
                 np.array(_flatten_list(predictions))[use_indices],
+                # labels=range(4, n_labels),
+                # target_names=vocab.get_vocab_list()[4:]
                 labels=range(4, n_labels),
-                target_names=vocab.get_vocab_list()[4:]
+                target_names=all_labels
                     ), file=f)
             print(classification_report(
                 np.array(_flatten_list(golds))[use_indices],
                 np.array(_flatten_list(predictions))[use_indices],
+                # labels=range(4, n_labels),
+                # target_names=vocab.get_vocab_list()[4:]
                 labels=range(4, n_labels),
-                target_names=vocab.get_vocab_list()[4:]
+                target_names=all_labels
             ))
         for mm in metric_meta:
             metric_name = mm.name

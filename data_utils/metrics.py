@@ -5,7 +5,7 @@ from sklearn.metrics import matthews_corrcoef
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
 from scipy.stats import pearsonr, spearmanr
 
-with open('experiments/japanese/ene_labels_all.txt') as f:
+with open('experiments/japanese/ene_labels_part.txt', 'r', encoding='utf8') as f:
     LABELS = [i for i, l in enumerate(f.read().split('\n'), 4) if l.strip()]
 
 def compute_acc(predicts, labels):
