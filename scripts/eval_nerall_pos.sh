@@ -1,6 +1,6 @@
 #!/bin/bash
-if [[ $# -ne 2 ]]; then
-  echo "run_ner.sh <batch_size> <gpu> <model_number>"
+if [[ $# -ne 3 ]]; then
+  echo "run_ner.sh <batch_size> <gpu> <model_ckpt>"
   exit 1
 fi
 prefix="mt-dnn-nerall-pos"
