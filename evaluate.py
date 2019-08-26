@@ -19,6 +19,105 @@ from mt_dnn.model import MTDNNModel
 from experiments.japanese.mytokenization import BertTokenizer
 
 
+def extract_chunk(sentence, from_gold=True):
+    chunks = []
+    chunk = []
+    for surf, pred, gold in sentence:
+        if from_gold:
+            if '-' in gold:
+                bio, netype = gold.split('-')
+                if bio == 'B':
+                    chunk = [(surf, pred, gold)]
+                elif bio == 'I':
+                    chunk.append((surf, pred, gold))
+            elif chunk:
+                chunks.append(chunk)
+                chunk = []
+        else:
+            if '-' in pred:
+                bio, netype = pred.split('-')
+                if bio == 'B':
+                    chunk = [(surf, pred, gold)]
+                elif bio == 'I':
+                    chunk.append((surf, pred, gold))
+            elif chunk:
+                chunks.append(chunk)
+                chunk = []
+    if chunk:
+        chunks.append(chunk)
+    return chunks
+
+def is_exact_match(chunk):
+    return all(pred == gold for _, pred, gold in chunk)
+
+def check_chunks_match(chunks_pos, chunks_err_gold, chunks_err_pred):
+    tp = 0
+    for chunks in chunks_pos:
+        for chunk in chunks:
+            assert is_exact_match(chunk)
+            tp += 1
+        # sentence
+    for chunks in chunks_err_gold:
+        for chunk in chunks:
+            if is_exact_match(chunk):
+                tp += 1
+
+    fn = 0
+    for chunks in chunks_err_gold:
+        for chunk in chunks:
+            if not is_exact_match(chunk):
+                fn += 1
+
+    fp = 0
+    for chunks in chunks_err_pred:
+        for chunk in chunks:
+            if not is_exact_match(chunk):
+                fp += 1
+
+    p = tp / (tp + fp)
+    r = tp / (tp + fn)
+    f1 = 2 / (1 / p + 1 / r)
+    return {'TP': tp, 'FP': fp, 'FN': fn, 'P': p, 'R': r, 'F1': f1}
+
+def __to_string(chunk):
+    return '\n'.join('\t'.join(l) for l in chunk)
+
+def chunk_error_detail(chunks_err_gold, output_dir):
+    fn_partial = 0  # 部分一致誤り
+    fn_confusion = 0  # クラス誤り
+    fn_o = 0  # 未抽出誤り
+
+    part_list, o_list, conf_list = [], [], []
+    for chunks in chunks_err_gold:
+        for chunk in chunks:
+            if any(pred.split('-')[-1] == gold.split('-')[-1] for _, pred, gold in chunk):
+                fn_partial += 1
+                part_list.append(__to_string(chunk))
+            elif all(pred == 'O' for _, pred, gold in chunk):
+                fn_o += 1
+                o_list.append(__to_string(chunk))
+            else:
+                fn_confusion += 1
+                conf_list.append(__to_string(chunk))
+    with open(os.path.join(output_dir, 'chunk_error_partial.txt'), 'w') as f_partial:
+        f_partial.write('\n\n'.join(part_list))
+    with open(os.path.join(output_dir, 'chunk_error_confusion.txt'), 'w') as f_confusion:
+        f_confusion.write('\n\n'.join(conf_list))
+    with open(os.path.join(output_dir, 'chunk_error_o.txt'), 'w') as f_o:
+        f_o.write('\n\n'.join(o_list))
+
+    return {'partial': fn_partial, 'confusion': fn_confusion, 'O': fn_o}
+
+def chunkwise_evaluation(sentences, output_dir):
+    sentences_err = [s for s in sentences if any(pred != gold for surf, pred, gold in s)]
+    sentences_pos = [s for s in sentences if all(pred == gold for surf, pred, gold in s)]
+    chunks_pos = [extract_chunk(sentence) for sentence in sentences_pos]
+    chunks_err_gold = [extract_chunk(sentence) for sentence in sentences_err]
+    chunks_err_pred = [extract_chunk(sentence, from_gold=False) for sentence in sentences_err]
+    chunk_metric = check_chunks_match(chunks_pos, chunks_err_gold, chunks_err_pred)
+    error_detail = chunk_error_detail(chunks_err_gold, output_dir)
+    return {'metric': chunk_metric, 'detail': error_detail}
+
 
 class SubwordWordConverter:
 
@@ -138,8 +237,9 @@ class SubwordWordConverter:
             with open(self.export_file, 'w', encoding='utf-8') as writer:
                 for output_sentence in output_sentences:
                     writer.write(output_sentence)
-
-        return tokens_list, labels_list_pred, labels_list_gold
+        return [[(token, label_pred, label_gold)
+                 for token, label_pred, label_gold in zip(tokens, labels_pred, labels_gold)]
+                for tokens, labels_pred, labels_gold in zip(tokens_list, labels_list_pred, labels_list_gold)]
 
 
 def model_config(parser):
@@ -487,16 +587,17 @@ def main():
 
                 score_file = os.path.join(output_dir, '{}_dev_scores_{}.json'.format(dataset, epoch))
                 results = {'metrics': dev_metrics, 'predictions': dev_predictions, 'uids': dev_ids}  #, 'scores': scores}
-                dump(score_file, results)
+                # dump(score_file, results)
                 # official_score_file = os.path.join(output_dir, '{}_dev_scores_{}.tsv'.format(dataset, epoch))
                 # submit(official_score_file, results, label_dict)
 
                 export_file = os.path.join(output_dir, '{}_dev_token_label_pred_{}.txt'.format(dataset, epoch))
                 swc = SubwordWordConverter(tokenizer, label_dict.ind2tok, export_file)
-
-                tokens_list, labels_list_pred, labels_list_gold = swc.convert_ids_to_surfaces_list(dev_inputs, dev_predictions, golds)
+                sentences_dev = swc.convert_ids_to_surfaces_list(dev_inputs, dev_predictions, golds)
                 # chunk-wise evaluation
-
+                dev_metric_chunk = chunkwise_evaluation(sentences_dev, output_dir)
+                metric_chunk_file = os.path.join(output_dir, '{}_dev_metrics_chunk_{}.json'.format(dataset, epoch))
+                dump(metric_chunk_file, dev_metric_chunk)
 
             # test eval
             test_data = test_data_list[idx]
@@ -514,28 +615,17 @@ def main():
 
                 score_file = os.path.join(output_dir, '{}_test_scores_{}.json'.format(dataset, epoch))
                 results = {'metrics': test_metrics, 'predictions': test_predictions, 'uids': test_ids}  # , 'scores': scores}
-                dump(score_file, results)
+                # dump(score_file, results)
                 # official_score_file = os.path.join(output_dir, '{}_test_scores_{}.tsv'.format(dataset, epoch))
                 # submit(official_score_file, results, label_dict)
                 # logger.info('[new test scores saved.]')
                 export_file = os.path.join(output_dir, '{}_test_token_label_pred_{}.txt'.format(dataset, epoch))
                 swc = SubwordWordConverter(tokenizer, label_dict.ind2tok, export_file)
-
-                # sentences = [
-                #     [(token, label_pred, label_gold)
-                #      for token, label_pred, label_gold in zip(tokens, labels_pred, labels_gold)]
-                #     for tokens, labels_pred, labels_gold in zip(token_ids, test_predictions, golds)]
-                # sentences_prev = [sentence for sentence in sentences if any(x[-1] != 'O' for x in sentence)]
-
-                tokens_list, labels_list_pred, labels_list_gold = swc.convert_ids_to_surfaces_list(test_inputs, test_predictions, golds)
-
-                # sentences = [
-                #     [(token, label_pred, label_gold)
-                #      for token, label_pred, label_gold in zip(tokens, labels_pred, labels_gold)]
-                #     for tokens, labels_pred, labels_gold in zip(tokens_list, labels_list_pred, labels_list_gold)]
-                # sentences_p = [sentence for sentence in sentences if any(x[-1] != 'O' for x in sentence)]
-
+                sentences_test = swc.convert_ids_to_surfaces_list(test_inputs, test_predictions, golds)
                 # chunk-wise evaluation
+                test_metric_chunk = chunkwise_evaluation(sentences_test, output_dir)
+                metric_chunk_file = os.path.join(output_dir, '{}_test_metrics_chunk_{}.json'.format(dataset, epoch))
+                dump(metric_chunk_file, test_metric_chunk)
 
         # model_file = os.path.join(output_dir, 'model_{}.pt'.format(epoch))
         # model.save(model_file)
