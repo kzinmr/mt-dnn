@@ -363,6 +363,7 @@ def main():
 
             dev_data = dev_data_list[idx]
             if dev_data is not None:
+                logger.info('Dev: calculating predictions & metrics')
                 dev_metrics, dev_predictions, scores, golds, dev_ids, dev_inputs = eval_model(model, dev_data,
                                                                                  task_defs.metric_meta_map[prefix],
                                                                                  label_dict,
@@ -407,6 +408,7 @@ def main():
             # test eval
             test_data = test_data_list[idx]
             if test_data is not None:
+                logger.info('Test: calculating predictions & metrics')
                 test_metrics, test_predictions, scores, golds, test_ids, test_inputs = eval_model(model, test_data,
                                                                                     task_defs.metric_meta_map[prefix],
                                                                                     label_dict,
@@ -418,9 +420,6 @@ def main():
 
                 metric_file = os.path.join(output_dir, '{}_test_metrics_{}.json'.format(dataset, epoch))
                 dump(metric_file, test_metrics)
-
-                classwise_metric_file = os.path.join(output_dir, '{}_test_classification_report_{}.json'.format(dataset, epoch))
-                dump(classwise_metric_file, test_classwise_metrics)
 
                 score_file = os.path.join(output_dir, '{}_test_scores_{}.json'.format(dataset, epoch))
                 results = {'metrics': test_metrics, 'predictions': test_predictions, 'uids': test_ids}
@@ -460,5 +459,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-
