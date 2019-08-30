@@ -24,7 +24,7 @@ def confusion_analysis(y_gold, y_pred, all_labels):
     return {
         'predicts': [pred for pred, _, _ in cm_sorted],
         'golds': [gold for _, gold, _ in cm_sorted],
-        'counts': [cnt for _, _, cnt in cm_sorted]
+        'counts': [int(cnt) for _, _, cnt in cm_sorted]
     }
 
 def model_config(parser):
