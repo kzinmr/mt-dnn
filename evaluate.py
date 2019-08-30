@@ -346,12 +346,12 @@ def main():
         #         logger.info('Saving mt-dnn model to {}'.format(model_file))
         #         model.save(model_file)
 
-        swc = SubwordWordConverter(args.bert_vocab, label_dict.ind2tok, output_dir)
-        ce = ChunkEvaluation(output_dir)
-
         for idx, dataset in enumerate(args.test_datasets):
             prefix = dataset.split('_')[0]
             label_dict = task_defs.global_map.get(prefix, None)
+            swc = SubwordWordConverter(args.bert_vocab, label_dict.ind2tok, output_dir)
+            ce = ChunkEvaluation(output_dir)
+
             dev_data = dev_data_list[idx]
             if dev_data is not None:
                 dev_metrics, dev_classwise_metrics, dev_predictions, scores, golds, dev_ids, dev_inputs = eval_model(model, dev_data,
