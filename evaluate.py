@@ -10,7 +10,7 @@ import torch
 from pytorch_pretrained_bert.modeling import BertConfig
 from experiments.exp_def import TaskDefs
 # from experiments.glue.glue_utils import submit, eval_model
-from experiments.japanese.bccwj_utils import submit, eval_model, SubwordWordConverter, ChunkEvaluation, confusion_analysis
+from experiments.japanese.bccwj_utils import eval_model, SubwordWordConverter, ChunkEvaluation, confusion_analysis
 from data_utils.log_wrapper import create_logger
 from data_utils.utils import set_environment
 from data_utils.task_def import TaskType
@@ -372,9 +372,6 @@ def main():
                 results = {'metrics': dev_metrics, 'predictions': dev_predictions, 'uids': dev_ids}
                 dump(score_file, results)
 
-                # official_score_file = os.path.join(output_dir, '{}_dev_scores_{}.tsv'.format(dataset, epoch))
-                # submit(official_score_file, results, label_dict)
-
                 if 'ner' in dataset:
                     # token_label export
                     sentences_dev = swc.convert_ids_to_surfaces_list(dev_inputs, dev_predictions, golds, suffix=f'{dataset}_dev_{epoch}')
@@ -414,9 +411,6 @@ def main():
                 score_file = os.path.join(output_dir, '{}_test_scores_{}.json'.format(dataset, epoch))
                 results = {'metrics': test_metrics, 'predictions': test_predictions, 'uids': test_ids}
                 dump(score_file, results)
-
-                # official_score_file = os.path.join(output_dir, '{}_test_scores_{}.tsv'.format(dataset, epoch))
-                # submit(official_score_file, results, label_dict)
 
                 if 'ner' in dataset:
                     # token_label export
