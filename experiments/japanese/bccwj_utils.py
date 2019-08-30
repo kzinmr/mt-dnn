@@ -1,22 +1,11 @@
 # Copyright (c) Microsoft. All rights reserved.
 import numpy as np
-from sklearn.metrics import classification_report
 from random import shuffle
 from data_utils.metrics import Metric, METRIC_FUNC
 from data_utils.task_def import DataFormat
 from functools import reduce
 import multiprocessing
 from experiments.japanese.mytokenization import BertTokenizer
-from sklearn.metrics import confusion_matrix
-
-def confusion_analysis(y_gold, y_pred, all_labels):
-    cm = confusion_matrix(y_gold, y_pred, labels=all_labels)
-    cm_sorted = sorted([(all_labels[pred_i], all_labels[gold_i], c) for gold_i, a in enumerate(cm) for pred_i, c in enumerate(a) if c > 0 and pred_i != gold_i], key=lambda x: -x[-1])
-    return {
-        'predicts': [pred for pred, _, _ in cm_sorted],
-        'golds': [gold for _, gold, _ in cm_sorted],
-        'counts': [cnt for _, _, cnt in cm_sorted]
-    }
 
 
 class ChunkEvaluation:
@@ -404,19 +393,6 @@ def eval_model(model, data, metric_meta, vocab, use_cuda=True, with_label=True, 
 
     use_indices = [label > 3 for label in _flatten_list(golds)]
     if with_label:
-        if any(use_indices):
-            classwise_metrics = classification_report(
-                np.array(_flatten_list(golds))[use_indices],
-                np.array(_flatten_list(predictions))[use_indices],
-                labels=range(4, n_labels),
-                target_names=all_labels,
-                output_dict=True
-            )
-            confusion_dicts = confusion_analysis(
-                np.array(_flatten_list(golds))[use_indices],
-                np.array(_flatten_list(predictions))[use_indices],
-                labels=range(4, n_labels),
-                target_names=all_labels)
         for mm in metric_meta:
             metric_name = mm.name
             metric_func = METRIC_FUNC[mm]

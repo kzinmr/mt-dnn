@@ -16,7 +16,16 @@ from data_utils.utils import set_environment
 from data_utils.task_def import TaskType
 from mt_dnn.batcher import BatchGen
 from mt_dnn.model import MTDNNModel
+from sklearn.metrics import classification_report, confusion_matrix
 
+def confusion_analysis(y_gold, y_pred, all_labels):
+    cm = confusion_matrix(y_gold, y_pred, labels=all_labels)
+    cm_sorted = sorted([(all_labels[pred_i], all_labels[gold_i], c) for gold_i, a in enumerate(cm) for pred_i, c in enumerate(a) if c > 0 and pred_i != gold_i], key=lambda x: -x[-1])
+    return {
+        'predicts': [pred for pred, _, _ in cm_sorted],
+        'golds': [gold for _, gold, _ in cm_sorted],
+        'counts': [cnt for _, _, cnt in cm_sorted]
+    }
 
 def model_config(parser):
     parser.add_argument('--update_bert_opt', default=0, type=int)
@@ -354,7 +363,7 @@ def main():
 
             dev_data = dev_data_list[idx]
             if dev_data is not None:
-                dev_metrics, dev_classwise_metrics, dev_predictions, scores, golds, dev_ids, dev_inputs = eval_model(model, dev_data,
+                dev_metrics, dev_predictions, scores, golds, dev_ids, dev_inputs = eval_model(model, dev_data,
                                                                                  task_defs.metric_meta_map[prefix],
                                                                                  label_dict,
                                                                                  use_cuda=args.cuda)
@@ -365,35 +374,40 @@ def main():
                 metric_file = os.path.join(output_dir, '{}_dev_metrics_{}.json'.format(dataset, epoch))
                 dump(metric_file, dev_metrics)
 
-                classwise_metric_file = os.path.join(output_dir, '{}_dev_classification_report_{}.json'.format(dataset, epoch))
-                dump(classwise_metric_file, dev_classwise_metrics)
-
                 score_file = os.path.join(output_dir, '{}_dev_scores_{}.json'.format(dataset, epoch))
                 results = {'metrics': dev_metrics, 'predictions': dev_predictions, 'uids': dev_ids}
                 dump(score_file, results)
-
+                logger.info('Dev: basic metrics are exported')
                 if 'ner' in dataset:
                     # token_label export
                     sentences_dev = swc.convert_ids_to_surfaces_list(dev_inputs, dev_predictions, golds, suffix=f'{dataset}_dev_{epoch}')
+                    logger.info('Dev: NER results are decoded')
 
                     # chunk-wise evaluation
                     dev_metrics_chunk = ce.chunkwise_evaluation(sentences_dev, suffix=f'{dataset}_dev_{epoch}')
                     metric_chunk_file = os.path.join(output_dir, '{}_dev_metrics_chunk_{}.json'.format(dataset, epoch))
                     dump(metric_chunk_file, dev_metrics_chunk)
 
-                    # confusion matrix
+                    # confusion matrix / classification report
                     y_golds = [gold for s in sentences_dev for _, _, gold in s]
                     y_preds = [pred for s in sentences_dev for _, pred, _ in s]
                     id2label = label_dict.ind2tok
                     all_labels = [id2label[i] for i in range(len(id2label))]
+
                     confusions = confusion_analysis(y_golds, y_preds, all_labels)
                     confusion_file = os.path.join(output_dir, '{}_dev_confusions_{}.json'.format(dataset, epoch))
                     dump(confusion_file, confusions)
 
+                    dev_classwise_metrics = classification_report(y_golds, y_preds, labels=all_labels, output_dict=True)
+                    classwise_metric_file = os.path.join(output_dir, '{}_dev_classification_report_{}.json'.format(dataset, epoch))
+                    dump(classwise_metric_file, dev_classwise_metrics)
+
+                    logger.info('Dev: NER specific metrics are exported')
+
             # test eval
             test_data = test_data_list[idx]
             if test_data is not None:
-                test_metrics, test_classwise_metrics, test_predictions, scores, golds, test_ids, test_inputs = eval_model(model, test_data,
+                test_metrics, test_predictions, scores, golds, test_ids, test_inputs = eval_model(model, test_data,
                                                                                     task_defs.metric_meta_map[prefix],
                                                                                     label_dict,
                                                                                     use_cuda=args.cuda)
@@ -411,24 +425,32 @@ def main():
                 score_file = os.path.join(output_dir, '{}_test_scores_{}.json'.format(dataset, epoch))
                 results = {'metrics': test_metrics, 'predictions': test_predictions, 'uids': test_ids}
                 dump(score_file, results)
-
+                logger.info('Test: basic metrics are exported')
                 if 'ner' in dataset:
                     # token_label export
                     sentences_test = swc.convert_ids_to_surfaces_list(test_inputs, test_predictions, golds, suffix=f'{dataset}_test_{epoch}')
+                    logger.info('Test: NER results are decoded')
 
                     # chunk-wise evaluation
                     test_metric_chunk = ce.chunkwise_evaluation(sentences_test, suffix=f'{dataset}_test_{epoch}')
                     metric_chunk_file = os.path.join(output_dir, '{}_test_metrics_chunk_{}.json'.format(dataset, epoch))
                     dump(metric_chunk_file, test_metric_chunk)
 
-                    # confusion matrix
+                    # confusion matrix / classification report
                     y_golds = [gold for s in sentences_test for _, _, gold in s]
                     y_preds = [pred for s in sentences_test for _, pred, _ in s]
                     id2label = label_dict.ind2tok
                     all_labels = [id2label[i] for i in range(len(id2label))]
+
                     confusions = confusion_analysis(y_golds, y_preds, all_labels)
                     confusion_file = os.path.join(output_dir, '{}_test_confusions_{}.json'.format(dataset, epoch))
                     dump(confusion_file, confusions)
+
+                    test_classwise_metrics = classification_report(y_golds, y_preds, labels=all_labels, output_dict=True)
+                    classwise_metric_file = os.path.join(output_dir, '{}_test_classification_report_{}.json'.format(dataset, epoch))
+                    dump(classwise_metric_file, test_classwise_metrics)
+
+                    logger.info('Test: NER specific results are exported')
 
                 logger.info('[new test scores saved.]')
 
