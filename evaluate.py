@@ -10,7 +10,7 @@ import torch
 from pytorch_pretrained_bert.modeling import BertConfig
 from experiments.exp_def import TaskDefs
 # from experiments.glue.glue_utils import submit, eval_model
-from experiments.japanese.bccwj_utils import eval_model, SubwordWordConverter, ChunkEvaluation, confusion_analysis
+from experiments.japanese.bccwj_utils import eval_model, SubwordWordConverter, ChunkEvaluation
 from data_utils.log_wrapper import create_logger
 from data_utils.utils import set_environment
 from data_utils.task_def import TaskType
