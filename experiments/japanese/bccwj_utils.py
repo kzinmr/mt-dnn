@@ -139,9 +139,9 @@ class SubwordWordConverter:
         self.LABELID_X = label2id['X']
         self.ignore_label_ids = { # self.LABELID_PAD,
                                  self.LABELID_CLS, self.LABELID_SEP}
-        # self.TOKENID_PAD = tokenizer.convert_tokens_to_ids(['[PAD]'])[0]
-        self.TOKENID_CLS = tokenizer.convert_tokens_to_ids(['[CLS]'])[0]
-        self.TOKENID_SEP = tokenizer.convert_tokens_to_ids(['[SEP]'])[0]
+        # self.TOKENID_PAD = self.tokenizer.convert_tokens_to_ids(['[PAD]'])[0]
+        self.TOKENID_CLS = self.tokenizer.convert_tokens_to_ids(['[CLS]'])[0]
+        self.TOKENID_SEP = self.tokenizer.convert_tokens_to_ids(['[SEP]'])[0]
         self.ignore_token_ids = {  #self.TOKENID_PAD,
                                  self.TOKENID_CLS, self.TOKENID_SEP}
 
