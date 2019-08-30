@@ -54,7 +54,7 @@ class ChunkEvaluation:
         return chunks
 
     @staticmethod
-    def self.__is_exact_match(chunk):
+    def __is_exact_match(chunk):
         return all(pred == gold for _, pred, gold in chunk)
 
     def check_chunks_match(self, chunks_pos, chunks_err_gold, chunks_err_pred):
@@ -87,7 +87,7 @@ class ChunkEvaluation:
         return {'TP': tp, 'FP': fp, 'FN': fn, 'P': p, 'R': r, 'F1': f1}
 
     @staticmethod
-    def self.__to_string(chunk):
+    def __to_string(chunk):
         return '\n'.join('\t'.join(l) for l in chunk)
 
     def chunk_error_detail(self, chunks_err_gold, suffix='test'):
