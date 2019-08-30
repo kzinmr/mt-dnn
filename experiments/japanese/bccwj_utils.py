@@ -6,23 +6,248 @@ from data_utils.metrics import Metric, METRIC_FUNC
 from data_utils.task_def import DataFormat
 from functools import reduce
 import multiprocessing
+from experiments.japanese.mytokenization import BertTokenizer
+from sklearn.metrics import confusion_matrix
+
+def confusion_analysis(y_gold, y_pred, all_labels):
+    cm = confusion_matrix(y_gold, y_pred, labels=all_labels)
+    cm_sorted = sorted([(all_labels[pred_i], all_labels[gold_i], c) for gold_i, a in enumerate(cm) for pred_i, c in enumerate(a) if c > 0 and pred_i != gold_i], key=lambda x: -x[-1])
+    return {
+        'predicts': [pred for pred, _, _ in cm_sorted],
+        'golds': [gold for _, gold, _ in cm_sorted],
+        'counts': [cnt for _, _, cnt in cm_sorted]
+    }
 
 
-def submit(path, data, label_dict=None):
-    header = 'index\tprediction'
-    with open(path ,'w') as writer:
-        predictions, uids = data['predictions'], data['uids']
-        writer.write('{}\n'.format(header))
-        assert len(predictions) == len(uids)
-        # sort label
-        paired = [(int(uid), predictions[idx]) for idx, uid in enumerate(uids)]
-        paired = sorted(paired, key=lambda item: item[0])
-        for uid, pred in paired:
-            if label_dict is None:
-                writer.write('{}\t{}\n'.format(uid, pred))
+class ChunkEvaluation:
+
+    def __init__(self, output_dir):
+        self.output_dir = output_dir
+
+    @staticmethod
+    def extract_chunk(sentence, from_gold=True):
+        chunks = []
+        chunk = []
+        for surf, pred, gold in sentence:
+            if from_gold:
+                if '-' in gold:
+                    bio, netype = gold.split('-')
+                    if bio == 'B':
+                        chunk = [(surf, pred, gold)]
+                    elif bio == 'I':
+                        chunk.append((surf, pred, gold))
+                elif chunk:
+                    chunks.append(chunk)
+                    chunk = []
             else:
-                assert type(pred) is int
-                writer.write('{}\t{}\n'.format(uid, label_dict[pred]))
+                if '-' in pred:
+                    bio, netype = pred.split('-')
+                    if bio == 'B':
+                        chunk = [(surf, pred, gold)]
+                    elif bio == 'I':
+                        chunk.append((surf, pred, gold))
+                elif chunk:
+                    chunks.append(chunk)
+                    chunk = []
+        if chunk:
+            chunks.append(chunk)
+        return chunks
+
+    @staticmethod
+    def self.__is_exact_match(chunk):
+        return all(pred == gold for _, pred, gold in chunk)
+
+    def check_chunks_match(self, chunks_pos, chunks_err_gold, chunks_err_pred):
+        tp = 0
+        for chunks in chunks_pos:
+            for chunk in chunks:
+                assert self.__is_exact_match(chunk)
+                tp += 1
+            # sentence
+        for chunks in chunks_err_gold:
+            for chunk in chunks:
+                if self.__is_exact_match(chunk):
+                    tp += 1
+
+        fn = 0
+        for chunks in chunks_err_gold:
+            for chunk in chunks:
+                if not self.__is_exact_match(chunk):
+                    fn += 1
+
+        fp = 0
+        for chunks in chunks_err_pred:
+            for chunk in chunks:
+                if not self.__is_exact_match(chunk):
+                    fp += 1
+
+        p = tp / (tp + fp)
+        r = tp / (tp + fn)
+        f1 = 2 / (1 / p + 1 / r)
+        return {'TP': tp, 'FP': fp, 'FN': fn, 'P': p, 'R': r, 'F1': f1}
+
+    @staticmethod
+    def self.__to_string(chunk):
+        return '\n'.join('\t'.join(l) for l in chunk)
+
+    def chunk_error_detail(self, chunks_err_gold, suffix='test'):
+        fn_partial = 0  # 部分一致誤り
+        fn_confusion = 0  # クラス誤り
+        fn_o = 0  # 未抽出誤り
+
+        part_list, o_list, conf_list = [], [], []
+        for chunks in chunks_err_gold:
+            for chunk in chunks:
+                if any(pred.split('-')[-1] == gold.split('-')[-1] for _, pred, gold in chunk):
+                    fn_partial += 1
+                    part_list.append(self.__to_string(chunk))
+                elif all(pred == 'O' for _, pred, gold in chunk):
+                    fn_o += 1
+                    o_list.append(self.__to_string(chunk))
+                else:
+                    fn_confusion += 1
+                    conf_list.append(self.__to_string(chunk))
+        with open(os.path.join(self.output_dir, f'chunk_error_partial_{suffix}.txt'), 'w') as f_partial:
+            f_partial.write('\n\n'.join(part_list))
+        with open(os.path.join(self.output_dir, f'chunk_error_confusion_{suffix}.txt'), 'w') as f_confusion:
+            f_confusion.write('\n\n'.join(conf_list))
+        with open(os.path.join(self.output_dir, f'chunk_error_o_{suffix}.txt'), 'w') as f_o:
+            f_o.write('\n\n'.join(o_list))
+
+        return {'partial': fn_partial, 'confusion': fn_confusion, 'O': fn_o}
+
+    def chunkwise_evaluation(self, sentences, suffix='test'):
+        sentences_err = [s for s in sentences if any(pred != gold for surf, pred, gold in s)]
+        sentences_pos = [s for s in sentences if all(pred == gold for surf, pred, gold in s)]
+        chunks_pos = [self.extract_chunk(sentence) for sentence in sentences_pos]
+        chunks_err_gold = [self.extract_chunk(sentence) for sentence in sentences_err]
+        chunks_err_pred = [self.extract_chunk(sentence, from_gold=False) for sentence in sentences_err]
+        chunk_metric = self.check_chunks_match(chunks_pos, chunks_err_gold, chunks_err_pred)
+        error_detail = self.chunk_error_detail(chunks_err_gold, suffix)
+        return {'metric': chunk_metric, 'detail': error_detail}
+
+
+class SubwordWordConverter:
+
+    def __init__(self, bert_vocab, id2label, output_dir=None):
+        self.tokenizer = BertTokenizer(bert_vocab, do_lower_case=False)
+        self.id2label = id2label
+        label2id = {v: k for k, v in id2label.items()}
+        # self.LABELID_PAD = 0
+        self.LABELID_CLS = label2id['[CLS]']
+        self.LABELID_SEP = label2id['[SEP]']
+        self.LABELID_X = label2id['X']
+        self.ignore_label_ids = { # self.LABELID_PAD,
+                                 self.LABELID_CLS, self.LABELID_SEP}
+        # self.TOKENID_PAD = tokenizer.convert_tokens_to_ids(['[PAD]'])[0]
+        self.TOKENID_CLS = tokenizer.convert_tokens_to_ids(['[CLS]'])[0]
+        self.TOKENID_SEP = tokenizer.convert_tokens_to_ids(['[SEP]'])[0]
+        self.ignore_token_ids = {  #self.TOKENID_PAD,
+                                 self.TOKENID_CLS, self.TOKENID_SEP}
+
+        self.output_dir = output_dir
+
+    @staticmethod
+    def convert_subword_to_word_by_label(subwords, labels_gold):
+        # subword.startswith('##') == True だけがsubwordとは限らない
+        # 'X' label を subword　-> word の復元に用いる
+        words, labels = [], []
+        for sw, lb in zip(subwords, labels_gold):
+            if lb == 'X':
+                assert len(words) > 0
+                prev = words[-1]
+                words = words[:-1]
+                word = prev + sw[2:]  # '##' 以降
+            else:
+                word = sw
+                labels.append(lb)
+            words.append(word)
+        return words, labels
+
+    def check_separator_aligned(self, inputs, labels):
+        for i, label in zip(inputs, labels):
+            if label == self.LABELID_CLS:
+                if i != self.TOKENID_CLS:
+                    return False
+            elif label == self.LABELID_SEP:
+                if i != self.TOKENID_SEP:
+                    return False
+        return True
+
+    def filter_token_ids(self, token_ids):
+        return [i for i in token_ids if i not in self.ignore_token_ids]
+
+    def filter_label_ids(self, label_ids):
+        return [l for l in label_ids if l not in self.ignore_label_ids]
+
+    def convert_id_to_surface_token(self, token_ids):
+        token_ids = self.filter_token_ids(token_ids)
+        return self.tokenizer.convert_ids_to_tokens(token_ids)
+
+    def convert_id_to_surface_label(self, label_ids):
+        label_ids = self.filter_label_ids(label_ids)
+        return [self.id2label[i] for i in label_ids]
+
+    def convert_tokens_to_words(self, token_ids, label_ids_gold, subword=False):
+        # subword　-> word の復元
+        subwords = self.convert_id_to_surface_token(token_ids)
+        labels = self.convert_id_to_surface_label(label_ids_gold)
+        if subword:
+            return subwords, labels
+        else:
+            words, labels = self.convert_subword_to_word_by_label(
+                zip(subwords, labels))
+            return words, labels
+
+    def filter_label_ids_by_gold(self, label_ids_pred, label_ids_gold):
+        label_ids_pred = self.filter_label_ids(label_ids_pred)
+        label_ids_gold = self.filter_label_ids(label_ids_gold)
+        label_ids_pred = [l for l, lg in zip(label_ids_pred, label_ids_gold)
+                          if lg != self.LABELID_X]
+        return label_ids_pred
+
+    def convert_ids_to_surfaces(self, token_ids, label_ids_pred, label_ids_gold, subword=False):
+        # gold label が 'X' であるか否かを基点に subword かどうかを認識する
+        subwords = self.convert_id_to_surface_token(token_ids)
+        labels_gold = self.convert_id_to_surface_label(label_ids_gold)
+        if subword:
+            words = subwords
+        else:
+            # subwords => words
+            words, labels_gold = self.convert_subword_to_word_by_label(
+                subwords, labels_gold)
+            # subword_labels => word_labels
+            label_ids_pred = self.filter_label_ids_by_gold(
+                label_ids_pred, label_ids_gold)
+        labels_pred = self.convert_id_to_surface_label(label_ids_pred)
+
+        return words, labels_pred, labels_gold
+
+    def convert_ids_to_surfaces_list(self, token_ids_list, label_ids_list_pred, label_ids_list_gold, subword=False, suffix='test'):
+        output_sentences = []
+        tokens_list, labels_list_pred, labels_list_gold = [], [], []
+        for token_ids, label_ids_pred, label_ids_gold in zip(token_ids_list, label_ids_list_pred, label_ids_list_gold):
+            if self.check_separator_aligned(token_ids, label_ids_pred):
+                words, labels_pred, labels_gold = self.convert_ids_to_surfaces(
+                    token_ids, label_ids_pred, label_ids_gold, subword=subword)
+                tokens_list.append(words)
+                labels_list_pred.append(labels_pred)
+                labels_list_gold.append(labels_gold)
+
+                # export
+                if self.output_dir is not None:
+                    output_lines = [f'{word}\t{label}\t{label_gold}'
+                                    for word, label, label_gold in zip(words, labels_pred, labels_gold)]
+                    output_line = "\n".join(output_lines)
+                    output_line += "\n\n"
+                    output_sentences.append(output_line)
+        if self.output_dir is not None:
+            with open(os.path.join(self.output_dir, f'token_label_pred_{suffix}.txt'), 'w', encoding='utf-8') as writer:
+                for output_sentence in output_sentences:
+                    writer.write(output_sentence)
+        return [[(token, label_pred, label_gold)
+                 for token, label_pred, label_gold in zip(tokens, labels_pred, labels_gold)]
+                for tokens, labels_pred, labels_gold in zip(tokens_list, labels_list_pred, labels_list_gold)]
 
 
 def _flatten_list(l):
@@ -49,7 +274,7 @@ def _is_valid(labels):
         else:
             bio = l
         # check two bad patterns like ['O', 'I-A', 'O'] or ['B-A', 'I-B', 'O']
-        if prev_bio == 'O' and bio == 'I' or prev_bio == 'B' and bio == 'I' and prev_netype != netype:
+        if prev_bio in {'', 'O'} and bio == 'I' or prev_bio == 'B' and bio == 'I' and prev_netype != netype:
             return False
         prev_bio = bio
         prev_netype = netype
@@ -84,7 +309,7 @@ def _remove_invalid_labels(labels):
         else:
             bio = l
         # check two bad patterns like ['O', 'I-A', 'O'] or ['B-A', 'I-B', 'O']
-        if prev_bio == 'O' and bio == 'I' or prev_bio == 'B' and bio == 'I' and prev_netype != netype:
+        if prev_bio in {'', 'O'} and bio == 'I' or prev_bio == 'B' and bio == 'I' and prev_netype != netype:
             remove_from = i
             j = i + 1
             while j < seq_length and labels[j].split('-')[0] == 'I':
@@ -146,25 +371,25 @@ def eval_model(model, data, metric_meta, vocab, use_cuda=True, with_label=True, 
         # beam_search(scores, beam_width):
 
         args = [(probability, beam_width) for probability in scores]
-        results = []
+        label_ids_beams_list = []
         with multiprocessing.Pool(multiprocessing.cpu_count()) as p:
-            results.append(p.map(_beam_search_decoder, args))
-        label_ids_beams_list = results[0]
+            label_ids_beams_list = p.map(_beam_search_decoder, args)
+
         label_ids_beams_list = [[beam[0] for beam in label_ids_beams] for label_ids_beams in label_ids_beams_list]
         labels_beams_list = [[__convert_labels(beam, id2label) for beam in label_ids_beams] for label_ids_beams in label_ids_beams_list]
         # validationを満たすbeamを選択; 無ければ先頭のbeam
         args = labels_beams_list
         label_ids_pred_idx = []
         with multiprocessing.Pool(multiprocessing.cpu_count()) as p:
-            label_ids_pred_idx.append(p.map(_is_valid_labels, args))
-        label_ids_pred_idx = label_ids_pred_idx[0]
+            label_ids_pred_idx = p.map(_is_valid_labels, args)
+
         predictions_bs = [label_ids_beams_list[i][beam_idx] for (i, beam_idx) in enumerate(label_ids_pred_idx)]
         # validation(predictions)
         args = [__convert_labels(label_ids, id2label) for label_ids in predictions_bs]
         labels_fixed = []
         with multiprocessing.Pool(multiprocessing.cpu_count()) as p:
-            labels_fixed.append(p.map(_remove_invalid_labels, args))
-        labels_fixed = labels_fixed[0]
+            labels_fixed = p.map(_remove_invalid_labels, args)
+
         predictions = [[label2id.get(l, n_labels) for l in labels] for labels in labels_fixed]
         scores = [ss for ss in scores for s in ss]
 
@@ -180,24 +405,18 @@ def eval_model(model, data, metric_meta, vocab, use_cuda=True, with_label=True, 
     use_indices = [label > 3 for label in _flatten_list(golds)]
     if with_label:
         if any(use_indices):
-            if export_file is not None:
-                with open(export_file, 'w', encoding='utf8') as f:
-                    print(classification_report(
+            classwise_metrics = classification_report(
                 np.array(_flatten_list(golds))[use_indices],
                 np.array(_flatten_list(predictions))[use_indices],
-                # labels=range(4, n_labels),
-                # target_names=vocab.get_vocab_list()[4:]
                 labels=range(4, n_labels),
-                target_names=all_labels
-                    ), file=f)
-            print(classification_report(
+                target_names=all_labels,
+                output_dict=True
+            )
+            confusion_dicts = confusion_analysis(
                 np.array(_flatten_list(golds))[use_indices],
                 np.array(_flatten_list(predictions))[use_indices],
-                # labels=range(4, n_labels),
-                # target_names=vocab.get_vocab_list()[4:]
                 labels=range(4, n_labels),
-                target_names=all_labels
-            ))
+                target_names=all_labels)
         for mm in metric_meta:
             metric_name = mm.name
             metric_func = METRIC_FUNC[mm]
@@ -206,5 +425,5 @@ def eval_model(model, data, metric_meta, vocab, use_cuda=True, with_label=True, 
                 np.array(_flatten_list(golds))[use_indices]
             )
             metrics[metric_name] = metric
-    return metrics, predictions, scores, golds, ids, inputs
+    return metrics, classwise_metrics, predictions, scores, golds, ids, inputs
 

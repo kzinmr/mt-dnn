@@ -10,7 +10,7 @@ import torch
 from pytorch_pretrained_bert.modeling import BertConfig
 from experiments.exp_def import TaskDefs
 # from experiments.glue.glue_utils import submit, eval_model
-from experiments.japanese.bccwj_utils import submit, eval_model
+from experiments.japanese.bccwj_utils import submit, eval_model, SubwordWordConverter, ChunkEvaluatino, confusion_analysis
 from data_utils.log_wrapper import create_logger
 from data_utils.utils import set_environment
 from data_utils.task_def import TaskType
@@ -343,44 +343,96 @@ def main():
                 logger.info('Saving mt-dnn model to {}'.format(model_file))
                 model.save(model_file)
 
+        swc = SubwordWordConverter(args.bert_vocab, label_dict.ind2tok, output_dir)
+        ce = ChunkEvaluation(output_dir)
+
         for idx, dataset in enumerate(args.test_datasets):
             prefix = dataset.split('_')[0]
             label_dict = task_defs.global_map.get(prefix, None)
             dev_data = dev_data_list[idx]
             if dev_data is not None:
-                dev_metrics, dev_predictions, scores, golds, dev_ids, _ = eval_model(model, dev_data,
+                dev_metrics, dev_classwise_metrics, dev_predictions, scores, golds, dev_ids, dev_inputs = eval_model(model, dev_data,
                                                                                  task_defs.metric_meta_map[prefix],
                                                                                  label_dict,
                                                                                  use_cuda=args.cuda)
+
                 for key, val in dev_metrics.items():
                     logger.warning("Task {0} -- epoch {1} -- Dev {2}: {3:.3f}".format(dataset, epoch, key, val))
+
                 metric_file = os.path.join(output_dir, '{}_dev_metrics_{}.json'.format(dataset, epoch))
                 dump(metric_file, dev_metrics)
 
-                # score_file = os.path.join(output_dir, '{}_dev_scores_{}.json'.format(dataset, epoch))
-                # results = {'metrics': dev_metrics, 'predictions': dev_predictions, 'uids': dev_ids, 'scores': scores}
-                # dump(score_file, results)
+                classwise_metric_file = os.path.join(output_dir, '{}_dev_classification_report_{}.json'.format(dataset, epoch))
+                dump(classwise_metric_file, dev_classwise_metrics)
+
+                score_file = os.path.join(output_dir, '{}_dev_scores_{}.json'.format(dataset, epoch))
+                results = {'metrics': dev_metrics, 'predictions': dev_predictions, 'uids': dev_ids}
+                dump(score_file, results)
+
                 # official_score_file = os.path.join(output_dir, '{}_dev_scores_{}.tsv'.format(dataset, epoch))
                 # submit(official_score_file, results, label_dict)
+
+                if 'ner' in dataset:
+                    # token_label export
+                    sentences_dev = swc.convert_ids_to_surfaces_list(dev_inputs, dev_predictions, golds, suffix=f'{dataset}_dev_{epoch}')
+
+                    # chunk-wise evaluation
+                    dev_metrics_chunk = ce.chunkwise_evaluation(sentences_dev, suffix=f'{dataset}_dev_{epoch}')
+                    metric_chunk_file = os.path.join(output_dir, '{}_dev_metrics_chunk_{}.json'.format(dataset, epoch))
+                    dump(metric_chunk_file, dev_metrics_chunk)
+
+                    # confusion matrix
+                    y_golds = [gold for s in sentences_dev for _, _, gold in s]
+                    y_preds = [pred for s in sentences_dev for _, pred, _ in s]
+                    id2label = label_dict.ind2tok
+                    all_labels = [id2label[i] for i in range(len(id2label))]
+                    confusions = confusion_analysis(y_golds, y_preds, all_labels)
+                    confusion_file = os.path.join(output_dir, '{}_dev_confusions_{}.json'.format(dataset, epoch))
+                    dump(confusion_file, confusions)
 
             # test eval
             test_data = test_data_list[idx]
             if test_data is not None:
-                test_metrics, test_predictions, scores, golds, test_ids, _ = eval_model(model, test_data,
+                test_metrics, test_classwise_metrics, test_predictions, scores, golds, test_ids, test_inputs = eval_model(model, test_data,
                                                                                     task_defs.metric_meta_map[prefix],
                                                                                     label_dict,
-                                                                                    use_cuda=args.cuda, with_label=True)
+                                                                                    use_cuda=args.cuda)
+
+                classification_report_file = os.path.join(output_dir, '{}_test_classification_report_{}.json'.format(dataset, epoch))
                 for key, val in test_metrics.items():
                     logger.warning("Task {0} -- epoch {1} -- Test {2}: {3:.3f}".format(dataset, epoch, key, val))
+
                 metric_file = os.path.join(output_dir, '{}_test_metrics_{}.json'.format(dataset, epoch))
                 dump(metric_file, test_metrics)
 
-                # score_file = os.path.join(output_dir, '{}_test_scores_{}.json'.format(dataset, epoch))
-                # results = {'metrics': test_metrics, 'predictions': test_predictions, 'uids': test_ids, 'scores': scores}
-                # dump(score_file, results)
+                classwise_metric_file = os.path.join(output_dir, '{}_test_classification_report_{}.json'.format(dataset, epoch))
+                dump(classwise_metric_file, test_classwise_metrics)
+
+                score_file = os.path.join(output_dir, '{}_test_scores_{}.json'.format(dataset, epoch))
+                results = {'metrics': test_metrics, 'predictions': test_predictions, 'uids': test_ids}
+                dump(score_file, results)
                 # official_score_file = os.path.join(output_dir, '{}_test_scores_{}.tsv'.format(dataset, epoch))
                 # submit(official_score_file, results, label_dict)
-                # logger.info('[new test scores saved.]')
+
+                if 'ner' in dataset:
+                    # token_label export
+                    sentences_test = swc.convert_ids_to_surfaces_list(test_inputs, test_predictions, golds, suffix=f'{dataset}_test_{epoch}')
+
+                    # chunk-wise evaluation
+                    test_metric_chunk = ce.chunkwise_evaluation(sentences_test, suffix=f'{dataset}_test_{epoch}')
+                    metric_chunk_file = os.path.join(output_dir, '{}_test_metrics_chunk_{}.json'.format(dataset, epoch))
+                    dump(metric_chunk_file, test_metric_chunk)
+
+                    # confusion matrix
+                    y_golds = [gold for s in sentences_test for _, _, gold in s]
+                    y_preds = [pred for s in sentences_test for _, pred, _ in s]
+                    id2label = label_dict.ind2tok
+                    all_labels = [id2label[i] for i in range(len(id2label))]
+                    confusions = confusion_analysis(y_golds, y_preds, all_labels)
+                    confusion_file = os.path.join(output_dir, '{}_test_confusions_{}.json'.format(dataset, epoch))
+                    dump(confusion_file, confusions)
+
+                logger.info('[new test scores saved.]')
 
         model_file = os.path.join(output_dir, 'model_{}.pt'.format(epoch))
         model.save(model_file)
