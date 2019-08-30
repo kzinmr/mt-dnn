@@ -97,11 +97,11 @@ class ChunkEvaluation:
                 else:
                     fn_confusion += 1
                     conf_list.append(self.__to_string(chunk))
-        with open(os.path.join(self.output_dir, f'chunk_error_partial_{suffix}.txt'), 'w') as f_partial:
+        with open(os.path.join(self.output_dir, f'chunk_error_partial_{suffix}.txt'), 'w', encoding='utf8') as f_partial:
             f_partial.write('\n\n'.join(part_list))
-        with open(os.path.join(self.output_dir, f'chunk_error_confusion_{suffix}.txt'), 'w') as f_confusion:
+        with open(os.path.join(self.output_dir, f'chunk_error_confusion_{suffix}.txt'), 'w', encoding='utf8') as f_confusion:
             f_confusion.write('\n\n'.join(conf_list))
-        with open(os.path.join(self.output_dir, f'chunk_error_o_{suffix}.txt'), 'w') as f_o:
+        with open(os.path.join(self.output_dir, f'chunk_error_o_{suffix}.txt'), 'w', encoding='utf8') as f_o:
             f_o.write('\n\n'.join(o_list))
 
         return {'partial': fn_partial, 'confusion': fn_confusion, 'O': fn_o}
