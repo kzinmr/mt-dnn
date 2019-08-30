@@ -5,6 +5,7 @@ from data_utils.metrics import Metric, METRIC_FUNC
 from data_utils.task_def import DataFormat
 from functools import reduce
 import multiprocessing
+import os
 from experiments.japanese.mytokenization import BertTokenizer
 
 
