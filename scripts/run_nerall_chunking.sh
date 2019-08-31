@@ -3,15 +3,15 @@ if [[ $# -ne 2 ]]; then
   echo "run_ner.sh <batch_size> <gpu>"
   exit 1
 fi
-prefix="mt-dnn-nerall-pos"
+prefix="mt-dnn-nerall-chunking"
 BATCH_SIZE=$1
 gpu=$2
 echo "export CUDA_VISIBLE_DEVICES=${gpu}"
 export CUDA_VISIBLE_DEVICES=${gpu}
 tstr=$(date +"%FT%H%M")
 
-train_datasets="nerall,pos"
-test_datasets="nerall,pos"
+train_datasets="nerall,chunking"
+test_datasets="nerall,chunking"
 MODEL_ROOT="checkpoints"
 
 BERT_PATH="mt_dnn_models/Japanese_L-12_H-768_A-12_E-30_BPE/"
